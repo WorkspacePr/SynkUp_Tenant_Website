@@ -1,0 +1,89 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f4f6f9;
+  --foreground: #172033;
+  --card: #ffffff;
+  --card-foreground: #172033;
+  --primary: #0d9488;
+  --primary-foreground: #f8fffe;
+  --secondary: #1e2938;
+  --secondary-foreground: #f8fafc;
+  --muted: #eef2f7;
+  --muted-foreground: #64748b;
+  --border: #d8e0ea;
+  --input: #edf2f7;
+  --ring: #14b8a6;
+  --destructive: #dc2626;
+  --success: #16a34a;
+  --warning: #d97706;
+}
+
+.dark {
+  --background: #09131f;
+  --foreground: #eff6ff;
+  --card: #0f1a27;
+  --card-foreground: #eff6ff;
+  --primary: #14b8a6;
+  --primary-foreground: #041413;
+  --secondary: #e2e8f0;
+  --secondary-foreground: #0f172a;
+  --muted: #132235;
+  --muted-foreground: #94a3b8;
+  --border: #27405c;
+  --input: #132235;
+  --ring: #2dd4bf;
+  --destructive: #f87171;
+  --success: #4ade80;
+  --warning: #fbbf24;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --font-sans: "Aptos", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "Cascadia Code", "Consolas", "SFMono-Regular", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--background);
+}
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(13, 148, 136, 0.18), transparent 28%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(244, 246, 249, 0.95)),
+    var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+::selection {
+  background: rgba(20, 184, 166, 0.2);
+}
