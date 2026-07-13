@@ -10,6 +10,7 @@ interface WelcomeChecklistStepProps {
   completedTaskIds: Array<"profile" | "unit" | "invite" | "audience">;
   onStartTask: (taskId: "profile" | "unit" | "invite" | "audience") => void;
   onContinue: () => void;
+  onGoToDashboard: () => void;
   organizationName?: string;
 }
 
@@ -18,6 +19,7 @@ export function WelcomeChecklistStep({
   completedTaskIds,
   onStartTask,
   onContinue,
+  onGoToDashboard,
   organizationName,
 }: WelcomeChecklistStepProps) {
   const tasks: Array<{
@@ -208,7 +210,11 @@ export function WelcomeChecklistStep({
           Continue Setup
           <ArrowRightIcon className="h-4 w-4" />
         </Button>
-        <button type="button" className="text-sm font-semibold text-primary">
+        <button
+          type="button"
+          className="text-sm font-semibold text-primary"
+          onClick={onGoToDashboard}
+        >
           Go to Dashboard
         </button>
       </div>

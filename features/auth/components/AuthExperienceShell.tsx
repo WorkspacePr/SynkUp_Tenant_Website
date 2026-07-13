@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { AuthShell } from "@/components/layout/AuthShell";
 import { Stepper } from "@/components/ui/Stepper";
 import { cn } from "@/utils";
@@ -38,21 +40,21 @@ export function AuthExperienceShell({
         </AuthShell>
 
         <div className="flex flex-col bg-[#fbfbff] px-6 py-6 sm:px-10 sm:py-8 lg:px-14 lg:py-10">
-          {/* <header className="flex items-center justify-between gap-4">
+          <header className="flex items-center justify-between gap-4">
             <div>
               {stepperLabel && stepperPhase ? (
                 <Stepper label={stepperLabel} phase={stepperPhase} />
               ) : null}
             </div>
             {!hideContinueLater ? (
-              <button
-                type="button"
+              <Link
+                href="/create-account"
                 className="inline-flex min-h-11 items-center justify-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-[0_18px_34px_-24px_rgba(13,148,136,0.9)] transition hover:bg-[#0b857b] sm:px-6"
               >
-                Continue Later
-              </button>
+                Sign Up
+              </Link>
             ) : null}
-          </header> */}
+          </header>
 
           <div
             className={cn(

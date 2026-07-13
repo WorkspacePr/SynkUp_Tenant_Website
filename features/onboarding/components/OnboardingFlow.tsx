@@ -29,6 +29,8 @@ import {
   ONBOARDING_ACCESS_TOKEN_STORAGE_KEY,
   ONBOARDING_REFRESH_TOKEN_STORAGE_KEY,
   ONBOARDING_STATE_STORAGE_KEY,
+  buildTenantSignInUrl,
+  readTenantLoginContext,
   storeOnboardingTokens,
   storeTenantLoginContext,
 } from "@/lib/auth/tenant-session";
@@ -222,9 +224,17 @@ function resolveSelectValue(options: SelectOption[], incomingValue: string | nul
   return matchedOption?.value ?? incomingValue ?? "";
 }
 
-export function OnboardingFlow() {
+interface OnboardingFlowProps {
+  mode?: "full" | "workspace";
+}
+
+export function OnboardingFlow({
+  mode = "full",
+}: OnboardingFlowProps = {}) {
   const router = useRouter();
-  const [phase, setPhase] = useState<"creation" | "workspace">("creation");
+  const [phase, setPhase] = useState<"creation" | "workspace">(
+    mode === "workspace" ? "workspace" : "creation",
+  );
   const [creationStep, setCreationStep] =
     useState<CreationStepId>("organisation");
   const [currentStep, setCurrentStep] = useState<OnboardingStepId>("welcome");
@@ -248,6 +258,10 @@ export function OnboardingFlow() {
     null,
   );
   const [verificationToken, setVerificationToken] = useState("");
+
+  function goToDashboard() {
+    router.push("/dashboard");
+  }
   const [organizationId, setOrganizationId] = useState<number | null>(null);
   const [unitId, setUnitId] = useState<number | null>(null);
   const [audienceId, setAudienceId] = useState<number | null>(null);
@@ -433,6 +447,31 @@ export function OnboardingFlow() {
       ONBOARDING_STATE_STORAGE_KEY,
     );
     if (!storedValue) {
+      const loginContext =
+        mode === "workspace" ? readTenantLoginContext() : null;
+
+      if (mode === "workspace" && loginContext?.organizationId) {
+        const timeout = window.setTimeout(() => {
+          setPhase("workspace");
+          setOrganizationId(loginContext.organizationId ?? null);
+          if (loginContext.subdomain) {
+            setValue("subdomain", loginContext.subdomain, {
+              shouldDirty: false,
+              shouldTouch: false,
+            });
+          }
+          if (loginContext.email) {
+            setValue("email", loginContext.email, {
+              shouldDirty: false,
+              shouldTouch: false,
+            });
+          }
+          setHasRestoredStoredState(true);
+        }, 0);
+
+        return () => window.clearTimeout(timeout);
+      }
+
       const timeout = window.setTimeout(() => {
         setHasRestoredStoredState(true);
       }, 0);
@@ -456,6 +495,20 @@ export function OnboardingFlow() {
         completedTasks: Array<"profile" | "unit" | "invite" | "audience">;
         values: Partial<OnboardingFormValues>;
       }>;
+      const loginContext =
+        mode === "workspace" ? readTenantLoginContext() : null;
+      const resolvedOrganizationId =
+        typeof parsed.organizationId === "number"
+          ? parsed.organizationId
+          : loginContext?.organizationId ?? null;
+
+      if (mode === "workspace" && parsed.phase === "creation") {
+        window.sessionStorage.removeItem(ONBOARDING_STATE_STORAGE_KEY);
+        restoreReadyTimeout = window.setTimeout(() => {
+          setHasRestoredStoredState(true);
+        }, 0);
+        return;
+      }
 
       if (parsed.values) {
         reset({ ...defaultValues, ...parsed.values });
@@ -464,8 +517,9 @@ export function OnboardingFlow() {
         if (parsed.phase) setPhase(parsed.phase);
         if (parsed.creationStep) setCreationStep(parsed.creationStep);
         if (parsed.currentStep) setCurrentStep(parsed.currentStep);
-        if (typeof parsed.organizationId === "number")
-          setOrganizationId(parsed.organizationId);
+        if (typeof resolvedOrganizationId === "number") {
+          setOrganizationId(resolvedOrganizationId);
+        }
         if (typeof parsed.unitId === "number") setUnitId(parsed.unitId);
         if (typeof parsed.audienceId === "number")
           setAudienceId(parsed.audienceId);
@@ -473,6 +527,20 @@ export function OnboardingFlow() {
           setVerificationToken(parsed.verificationToken);
         if (typeof parsed.workspaceOrganizationName === "string") {
           setWorkspaceOrganizationName(parsed.workspaceOrganizationName);
+        } else if (loginContext?.subdomain) {
+          setWorkspaceOrganizationName(loginContext.subdomain);
+        }
+        if (loginContext?.subdomain) {
+          setValue("subdomain", loginContext.subdomain, {
+            shouldDirty: false,
+            shouldTouch: false,
+          });
+        }
+        if (loginContext?.email) {
+          setValue("email", loginContext.email, {
+            shouldDirty: false,
+            shouldTouch: false,
+          });
         }
         if (typeof parsed.forceWorkspaceWelcome === "boolean") {
           setForceWorkspaceWelcome(parsed.forceWorkspaceWelcome);
@@ -493,7 +561,7 @@ export function OnboardingFlow() {
         window.clearTimeout(restoreReadyTimeout);
       }
     };
-  }, [reset]);
+  }, [mode, reset]);
 
   useEffect(() => {
     if (!hasRestoredStoredState) {
@@ -1076,6 +1144,7 @@ export function OnboardingFlow() {
         storeOnboardingTokens({});
       }
       storeTenantLoginContext({
+        organizationId: result.organizationId ?? undefined,
         subdomain: getValues("subdomain"),
         email: getValues("email"),
         redirectTo: "/onboarding",
@@ -1754,6 +1823,7 @@ export function OnboardingFlow() {
             onContinue={() =>
               leaveWorkspaceWelcome(taskStepMap[welcomeResumeTask])
             }
+            onGoToDashboard={goToDashboard}
             organizationName={
               workspaceOrganizationName || values.organisationName
             }
@@ -1891,9 +1961,40 @@ export function OnboardingFlow() {
             launchError={launchError}
             onBack={() => setCurrentStep("review")}
             onLaunch={handleLaunchOrganization}
+            onGoToDashboard={goToDashboard}
           />
         );
     }
+  }
+
+  if (mode === "workspace" && hasRestoredStoredState && !organizationId) {
+    return (
+      <OnboardingShell>
+        <div className="mx-auto max-w-2xl rounded-[1.5rem] border border-border bg-card p-8 shadow-sm">
+          <h1 className="text-2xl font-semibold text-secondary">
+            Your onboarding session could not be restored
+          </h1>
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">
+            Sign in again or create a new organization account to continue your
+            workspace onboarding.
+          </p>
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <a
+              href={buildTenantSignInUrl()}
+              className="inline-flex min-h-14 flex-1 items-center justify-center rounded-full bg-primary px-6 py-4 text-sm font-semibold text-primary-foreground shadow-[0_18px_34px_-24px_rgba(13,148,136,0.9)] transition hover:bg-[#0b857b]"
+            >
+              Go to sign in
+            </a>
+            <a
+              href="/create-account"
+              className="inline-flex min-h-14 flex-1 items-center justify-center rounded-full border border-border bg-card px-6 py-4 text-sm font-semibold text-primary transition hover:border-primary hover:text-primary"
+            >
+              Create organisation
+            </a>
+          </div>
+        </div>
+      </OnboardingShell>
+    );
   }
 
   if (phase === "creation") {

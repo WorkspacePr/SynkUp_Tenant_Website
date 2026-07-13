@@ -17,6 +17,9 @@
   --destructive: #dc2626;
   --success: #16a34a;
   --warning: #d97706;
+  --scrollbar-track: rgba(216, 224, 234, 0.56);
+  --scrollbar-thumb: rgba(13, 148, 136, 0.44);
+  --scrollbar-thumb-hover: rgba(13, 148, 136, 0.7);
 }
 
 .dark {
@@ -36,6 +39,9 @@
   --destructive: #f87171;
   --success: #4ade80;
   --warning: #fbbf24;
+  --scrollbar-track: rgba(19, 34, 53, 0.85);
+  --scrollbar-thumb: rgba(20, 184, 166, 0.5);
+  --scrollbar-thumb-hover: rgba(45, 212, 191, 0.8);
 }
 
 @theme inline {
@@ -75,6 +81,103 @@ body {
     var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.scrollbar-dashboard {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+  scrollbar-gutter: stable;
+}
+
+.scrollbar-dashboard::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+.scrollbar-dashboard::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 999px;
+}
+
+.scrollbar-dashboard::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--scrollbar-thumb) 88%, transparent);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+.scrollbar-dashboard::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+
+.scrollbar-dashboard::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.scrollbar-subtle {
+  scrollbar-width: thin;
+}
+
+.scrollbar-subtle::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.scrollbar-subtle::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-subtle::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--scrollbar-thumb) 82%, transparent);
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+.scrollbar-subtle::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
 }
 
 button,

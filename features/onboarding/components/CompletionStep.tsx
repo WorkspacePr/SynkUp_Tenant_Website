@@ -11,6 +11,7 @@ interface CompletionStepProps {
   launchError?: string | null;
   onBack: () => void;
   onLaunch: () => void;
+  onGoToDashboard: () => void;
 }
 
 function formatPlanName(planName: string) {
@@ -29,6 +30,7 @@ export function CompletionStep({
   launchError,
   onBack,
   onLaunch,
+  onGoToDashboard,
 }: CompletionStepProps) {
   const isLaunched = Boolean(checklist?.launch_completed_at);
   const items = [
@@ -135,11 +137,11 @@ export function CompletionStep({
           <Button
             type="button"
             className="flex-1 rounded-md px-8 py-3"
-            onClick={onLaunch}
-            loading={isLaunching}
-            disabled={isLoadingChecklist || !checklist?.can_launch || isLaunched}
+            onClick={isLaunched ? onGoToDashboard : onLaunch}
+            loading={!isLaunched && isLaunching}
+            disabled={!isLaunched && (isLoadingChecklist || !checklist?.can_launch)}
           >
-            {isLaunched ? "Organization Launched" : "Launch Organization"}
+            {isLaunched ? "Go to Dashboard" : "Launch Organization"}
             <ArrowRightIcon className="h-4 w-4" />
           </Button>
         </div>

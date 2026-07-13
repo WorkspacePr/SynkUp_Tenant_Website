@@ -15,9 +15,11 @@ import { CredentialsStage } from "@/features/auth/components/sign-in/Credentials
 import { OrganizationStage } from "@/features/auth/components/sign-in/OrganizationStage";
 import { VerificationStage } from "@/features/auth/components/sign-in/VerificationStage";
 import type { SignInStage } from "@/features/auth/components/sign-in/types";
+import { resolvePostLoginRoute } from "@/features/auth/utils/post-login-route";
 import {
   clearTenantLoginContext,
   readTenantLoginContext,
+  storeAuthenticatedRoute,
   storeOnboardingTokens,
   storeTenantLoginContext,
 } from "@/lib/auth/tenant-session";
@@ -50,14 +52,69 @@ export function SignInFlow() {
 
   useEffect(() => {
     const context = readTenantLoginContext();
+    const incomingResume = searchParams.get("resume");
+    const incomingRedirectTo = searchParams.get("redirectTo");
+    const shouldClearStaleOnboardingRedirect =
+      !incomingResume &&
+      !incomingRedirectTo &&
+      (context?.resumeTarget === "onboarding" ||
+        context?.redirectTo === "/onboarding");
+
+    if (shouldClearStaleOnboardingRedirect && context) {
+      clearTenantLoginContext();
+      storeTenantLoginContext({
+        organizationId: context.organizationId,
+        dashboardRole: context.dashboardRole,
+        unitScope: context.unitScope,
+        audienceScope: context.audienceScope,
+        onboardingStatus: context.onboardingStatus,
+        onboardingCurrentStep: context.onboardingCurrentStep,
+        onboardingLaunched: context.onboardingLaunched,
+        subdomain: context.subdomain,
+        email: context.email,
+      });
+    }
+
+    const resolvedContext =
+      shouldClearStaleOnboardingRedirect && context
+        ? {
+            organizationId: context.organizationId,
+            dashboardRole: context.dashboardRole,
+            unitScope: context.unitScope,
+            audienceScope: context.audienceScope,
+            onboardingStatus: context.onboardingStatus,
+            onboardingCurrentStep: context.onboardingCurrentStep,
+            onboardingLaunched: context.onboardingLaunched,
+            subdomain: context.subdomain,
+            email: context.email,
+          }
+        : context;
+    const legacySubdomain = searchParams.get("subdomain")?.trim() || "";
+    const legacyEmail = searchParams.get("email")?.trim() || "";
     const restoredSubdomain =
-      searchParams.get("subdomain")?.trim() || context?.subdomain?.trim() || "";
-    const restoredEmail =
-      searchParams.get("email")?.trim() || context?.email?.trim() || "";
+      resolvedContext?.subdomain?.trim() || legacySubdomain;
+    const restoredEmail = resolvedContext?.email?.trim() || legacyEmail;
 
     const timeout = window.setTimeout(() => {
       setSubdomain(restoredSubdomain);
       setEmail(restoredEmail);
+
+      if (legacySubdomain || legacyEmail) {
+        if (legacySubdomain && !resolvedContext?.subdomain) {
+          storeTenantLoginContext({ subdomain: legacySubdomain });
+        }
+
+        if (legacyEmail && !resolvedContext?.email) {
+          storeTenantLoginContext({ email: legacyEmail });
+        }
+
+        const sanitizedParams = new URLSearchParams(searchParams.toString());
+        sanitizedParams.delete("subdomain");
+        sanitizedParams.delete("email");
+        const sanitizedQuery = sanitizedParams.toString();
+        const sanitizedUrl = sanitizedQuery ? `/signin?${sanitizedQuery}` : "/signin";
+        router.replace(sanitizedUrl);
+      }
 
       if (restoredSubdomain) {
         setStage("credentials");
@@ -111,14 +168,48 @@ export function SignInFlow() {
     setStage("credentials");
   }
 
-  async function finalizeLogin(redirectTarget?: string | null) {
+  async function finalizeLogin(args?: {
+    dashboardRole?: "super" | "unit" | "audience" | null;
+    unitScope?: number[];
+    audienceScope?: number[];
+    onboardingStatus?: string | null;
+    onboardingCurrentStep?: string | null;
+    onboardingLaunched?: boolean | null;
+    redirectTarget?: string | null;
+  }) {
     const resume = searchParams.get("resume");
-    const nextTarget =
-      resume === "onboarding"
-        ? "/onboarding"
-        : redirectTarget?.trim() || searchParams.get("redirectTo") || "/onboarding";
+    const nextTarget = resolvePostLoginRoute({
+      dashboardRole: args?.dashboardRole,
+      unitScope: args?.unitScope,
+      audienceScope: args?.audienceScope,
+      onboardingStatus: args?.onboardingStatus,
+      onboardingCurrentStep: args?.onboardingCurrentStep,
+      onboardingLaunched: args?.onboardingLaunched,
+      redirectTarget: args?.redirectTarget,
+      searchRedirectTo: searchParams.get("redirectTo"),
+      resume,
+    });
 
+    storeAuthenticatedRoute(nextTarget);
+    const currentLoginContext = readTenantLoginContext();
     clearTenantLoginContext();
+
+    if (nextTarget.startsWith("/onboarding") && currentLoginContext) {
+      storeTenantLoginContext({
+        organizationId: currentLoginContext.organizationId,
+        dashboardRole: currentLoginContext.dashboardRole,
+        unitScope: currentLoginContext.unitScope,
+        audienceScope: currentLoginContext.audienceScope,
+        onboardingStatus: currentLoginContext.onboardingStatus,
+        onboardingCurrentStep: currentLoginContext.onboardingCurrentStep,
+        onboardingLaunched: currentLoginContext.onboardingLaunched,
+        subdomain: currentLoginContext.subdomain,
+        email: currentLoginContext.email,
+        redirectTo: "/onboarding",
+        resumeTarget: "onboarding",
+      });
+    }
+
     router.push(nextTarget);
   }
 
@@ -155,9 +246,16 @@ export function SignInFlow() {
     }
 
     storeTenantLoginContext({
+      organizationId: result.organizationId ?? undefined,
+      dashboardRole: result.dashboardRole ?? undefined,
+      unitScope: result.unitScope,
+      audienceScope: result.audienceScope,
+      onboardingStatus: result.onboardingStatus ?? undefined,
+      onboardingCurrentStep: result.onboardingCurrentStep ?? undefined,
+      onboardingLaunched: result.onboardingLaunched ?? undefined,
       subdomain: result.organizationSubdomain || normalizedSubdomain,
       email: result.email || normalizedEmail,
-      redirectTo: searchParams.get("redirectTo") || "/onboarding",
+      redirectTo: searchParams.get("redirectTo") || undefined,
       resumeTarget:
         searchParams.get("resume") === "onboarding" ? "onboarding" : undefined,
     });
@@ -178,7 +276,15 @@ export function SignInFlow() {
 
     if (result.tokens.access) {
       storeOnboardingTokens(result.tokens);
-      await finalizeLogin(result.redirectTarget);
+      await finalizeLogin({
+        dashboardRole: result.dashboardRole,
+        unitScope: result.unitScope,
+        audienceScope: result.audienceScope,
+        onboardingStatus: result.onboardingStatus,
+        onboardingCurrentStep: result.onboardingCurrentStep,
+        onboardingLaunched: result.onboardingLaunched,
+        redirectTarget: result.redirectTarget,
+      });
       return;
     }
 
@@ -219,7 +325,22 @@ export function SignInFlow() {
     }
 
     storeOnboardingTokens(result.tokens);
-    await finalizeLogin(result.redirectTarget);
+    const loginContext = readTenantLoginContext();
+    await finalizeLogin({
+      dashboardRole: result.dashboardRole ?? loginContext?.dashboardRole,
+      unitScope:
+        result.unitScope.length > 0 ? result.unitScope : loginContext?.unitScope,
+      audienceScope:
+        result.audienceScope.length > 0
+          ? result.audienceScope
+          : loginContext?.audienceScope,
+      onboardingStatus: result.onboardingStatus ?? loginContext?.onboardingStatus,
+      onboardingCurrentStep:
+        result.onboardingCurrentStep ?? loginContext?.onboardingCurrentStep,
+      onboardingLaunched:
+        result.onboardingLaunched ?? loginContext?.onboardingLaunched,
+      redirectTarget: result.redirectTarget,
+    });
   }
 
   function syncVerificationCode(nextValue: string) {

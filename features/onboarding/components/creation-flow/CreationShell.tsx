@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { AuthShell } from "@/components/layout/AuthShell";
 import { Stepper } from "@/components/ui/Stepper";
 import { cn } from "@/utils";
@@ -37,12 +39,12 @@ function CreationPanel({
     <div className="flex flex-col bg-[#fbfbff] px-6 py-6 sm:px-10 sm:py-8 lg:px-14 lg:py-10">
       <header className="flex items-center justify-between gap-4">
         <Stepper label={`STEP ${phase} OF 3`} phase={phase} />
-        <button
-          type="button"
+        <Link
+          href="/signin"
           className="inline-flex min-h-11 items-center justify-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-[0_18px_34px_-24px_rgba(13,148,136,0.9)] transition hover:bg-[#0b857b] sm:px-6"
         >
-          Continue Later
-        </button>
+          Sign In
+        </Link>
       </header>
       <div
         className={cn(
@@ -77,12 +79,12 @@ export function CreationShell({
               <div className="text-2xl font-extrabold tracking-[-0.04em] text-primary">
                 SynkUp
               </div>
-              <button
-                type="button"
+              <Link
+                href="/signin"
                 className="inline-flex min-h-11 items-center justify-center rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-[0_18px_34px_-24px_rgba(13,148,136,0.9)] transition hover:bg-[#0b857b]"
               >
-                Continue Later
-              </button>
+                Sign In
+              </Link>
             </header>
             <div className="flex flex-1 flex-col px-4 py-8 sm:px-6 lg:px-10 lg:py-10 xl:px-12">
               <div className="flex flex-1 flex-col">{children}</div>
