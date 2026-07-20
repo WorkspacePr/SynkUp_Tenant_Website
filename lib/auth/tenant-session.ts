@@ -186,7 +186,7 @@ export function buildTenantSignInUrl() {
     (redirectTo !== "/onboarding" || context?.resumeTarget === "onboarding");
 
   if (shouldIncludeRedirectTo && redirectTo) {
-    params.set("redirectTo", context.redirectTo);
+    params.set("redirectTo", redirectTo);
   }
 
   const query = params.toString();
