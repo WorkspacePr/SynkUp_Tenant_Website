@@ -1,7 +1,9 @@
+import { useState } from "react";
 import Link from "next/link";
-import { AlertCircle, ArrowLeft, ArrowRight, Lock, Mail } from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowRight, Mail } from "lucide-react";
 
 import { Button } from "@/components/ui/Button";
+import { EyeIcon, EyeOffIcon } from "@/components/ui/Icons";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 
@@ -38,6 +40,8 @@ export function CredentialsStage({
   onBack,
   onSubmit,
 }: CredentialsStageProps) {
+  const [showPassword, setShowPassword] = useState(false);
+
   return (
     <form className="space-y-7" onSubmit={onSubmit}>
       <div className="space-y-2">
@@ -87,13 +91,24 @@ export function CredentialsStage({
           </div>
           <Input
             id="signin-password"
-            type="password"
+            type={showPassword ? "text" : "password"}
             value={password}
             onChange={(event) => onPasswordChange(event.target.value)}
             placeholder="Enter your password"
             error={Boolean(error)}
             suffix={
-              <Lock className="h-4 w-4 text-secondary/45" strokeWidth={1.8} />
+              <button
+                type="button"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                onClick={() => setShowPassword((value) => !value)}
+                className="text-muted-foreground transition hover:text-secondary"
+              >
+                {showPassword ? (
+                  <EyeOffIcon className="h-5 w-5" />
+                ) : (
+                  <EyeIcon className="h-5 w-5" />
+                )}
+              </button>
             }
           />
           {error ? (

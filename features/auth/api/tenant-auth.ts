@@ -1,7 +1,10 @@
 import { apiEndpoints, buildApiUrl } from "@/lib/api/endpoints";
 
 interface TenantLoginUser {
+  user_id?: number;
   email?: string;
+  first_name?: string;
+  last_name?: string;
 }
 
 interface TenantLoginOrganization {
@@ -18,6 +21,29 @@ interface TenantLoginTokens {
   refresh?: string;
 }
 
+interface TenantLoginMembership {
+  membership_id?: number;
+  membership_status?: string;
+  membership_type?: string;
+  is_primary_admin?: boolean;
+  unit_id?: number;
+}
+
+interface TenantLoginAccess {
+  roles?: string[];
+  permissions?: string[];
+  unit_scope?: number[];
+  audience_scope?: number[];
+  has_org_wide_role?: boolean;
+}
+
+interface TenantLoginOnboarding {
+  status?: string;
+  current_step?: string;
+  currentStep?: string;
+  launched?: boolean;
+}
+
 interface TenantAuthenticationMethods {
   email_password?: boolean;
   google_sso?: boolean;
@@ -28,11 +54,17 @@ interface TenantLoginResponse {
   message?: string;
   requires_otp?: boolean;
   challenge_id?: string;
+  requiresOtp?: boolean;
+  challengeId?: string;
+  next_step?: string;
+  nextStep?: string;
   user?: TenantLoginUser;
   organization?: TenantLoginOrganization;
+  membership?: TenantLoginMembership;
+  access?: TenantLoginAccess;
+  onboarding?: TenantLoginOnboarding;
   redirect_target?: string;
   tokens?: TenantLoginTokens;
-  access?: string;
   refresh?: string;
 }
 
@@ -61,20 +93,165 @@ function extractMessage(
   return fallback;
 }
 
+async function readApiPayload(response: Response) {
+  const contentType = response.headers.get("content-type") ?? "";
+  const rawText = await response.text();
+
+  if (contentType.includes("text/html")) {
+    return {
+      message:
+        "The sign-in request is being handled by the website instead of the authentication service. Restart the frontend server and try again.",
+    };
+  }
+
+  if (contentType.includes("application/json")) {
+    try {
+      return JSON.parse(rawText) as Record<string, unknown>;
+    } catch {
+      return {
+        message: rawText || "Invalid JSON response from authentication service.",
+      };
+    }
+  }
+
+  return {
+    message: rawText || `Authentication service returned HTTP ${response.status}.`,
+  };
+}
+
 function extractTokens(payload: TenantLoginResponse) {
+  const rawPayload = payload as Record<string, unknown>;
+  const rawAccessValue = rawPayload["access"];
+  const rawRefreshValue = rawPayload["refresh"];
+  const rawAccess =
+    typeof rawAccessValue === "string" ? rawAccessValue : null;
+  const rawRefresh =
+    typeof rawRefreshValue === "string" ? rawRefreshValue : null;
+
   return {
     access:
       typeof payload.tokens?.access === "string" && payload.tokens.access.trim()
         ? payload.tokens.access
-        : typeof payload.access === "string" && payload.access.trim()
-          ? payload.access
+        : rawAccess?.trim()
+          ? rawAccess
           : null,
     refresh:
       typeof payload.tokens?.refresh === "string" && payload.tokens.refresh.trim()
         ? payload.tokens.refresh
-        : typeof payload.refresh === "string" && payload.refresh.trim()
-          ? payload.refresh
+        : rawRefresh?.trim()
+          ? rawRefresh
           : null,
+  };
+}
+
+function extractChallengeId(payload: TenantLoginResponse) {
+  if (typeof payload.challenge_id === "string" && payload.challenge_id.trim()) {
+    return payload.challenge_id;
+  }
+
+  if (typeof payload.challengeId === "string" && payload.challengeId.trim()) {
+    return payload.challengeId;
+  }
+
+  return null;
+}
+
+function resolveRequiresOtp(payload: TenantLoginResponse) {
+  if (typeof payload.requires_otp === "boolean") {
+    return payload.requires_otp;
+  }
+
+  if (typeof payload.requiresOtp === "boolean") {
+    return payload.requiresOtp;
+  }
+
+  const nextStep =
+    typeof payload.next_step === "string"
+      ? payload.next_step
+      : typeof payload.nextStep === "string"
+        ? payload.nextStep
+        : "";
+
+  if (nextStep.trim().toLowerCase().includes("otp")) {
+    return true;
+  }
+
+  return extractChallengeId(payload) !== null;
+}
+
+function normalizeNumberArray(values: unknown): number[] {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  return values.filter(
+    (value): value is number => typeof value === "number" && Number.isFinite(value),
+  );
+}
+
+function resolveDashboardRole(payload: TenantLoginResponse) {
+  const membershipType = payload.membership?.membership_type?.trim().toLowerCase();
+  const roles = Array.isArray(payload.access?.roles)
+    ? payload.access.roles
+        .filter((role): role is string => typeof role === "string")
+        .map((role) => role.trim().toLowerCase())
+    : [];
+
+  if (
+    payload.membership?.is_primary_admin ||
+    payload.access?.has_org_wide_role ||
+    membershipType?.includes("super") ||
+    roles.some((role) => role.includes("super"))
+  ) {
+    return "super" as const;
+  }
+
+  if (
+    membershipType?.includes("audience") ||
+    roles.some((role) => role.includes("audience"))
+  ) {
+    return "audience" as const;
+  }
+
+  if (
+    membershipType?.includes("unit") ||
+    roles.some((role) => role.includes("unit"))
+  ) {
+    return "unit" as const;
+  }
+
+  const audienceScope = normalizeNumberArray(payload.access?.audience_scope);
+  if (audienceScope.length > 0) {
+    return "audience" as const;
+  }
+
+  const unitScope = normalizeNumberArray(payload.access?.unit_scope);
+  if (unitScope.length > 0) {
+    return "unit" as const;
+  }
+
+  return null;
+}
+
+function extractLoginRoutingContext(payload: TenantLoginResponse) {
+  return {
+    dashboardRole: resolveDashboardRole(payload),
+    unitScope: normalizeNumberArray(payload.access?.unit_scope),
+    audienceScope: normalizeNumberArray(payload.access?.audience_scope),
+    onboardingStatus:
+      typeof payload.onboarding?.status === "string"
+        ? payload.onboarding.status
+        : null,
+    onboardingCurrentStep:
+      typeof payload.onboarding?.current_step === "string"
+        ? payload.onboarding.current_step
+        : typeof payload.onboarding?.currentStep === "string"
+          ? payload.onboarding.currentStep
+          : null,
+    onboardingLaunched:
+      typeof payload.onboarding?.launched === "boolean"
+        ? payload.onboarding.launched
+        : null,
   };
 }
 
@@ -91,7 +268,7 @@ export async function findTenantOrganization(subdomain: string) {
       }),
     });
 
-    const body = (await response.json()) as FindTenantOrganizationResponse &
+    const body = (await readApiPayload(response)) as FindTenantOrganizationResponse &
       Record<string, unknown>;
 
     if (!response.ok || !body.organization) {
@@ -115,7 +292,7 @@ export async function findTenantOrganization(subdomain: string) {
   } catch {
     return {
       success: false as const,
-      message: "Unable to find that organisation right now.",
+      message: "Unable to reach the organisation lookup service right now.",
     };
   }
 }
@@ -143,25 +320,34 @@ export async function loginTenant(payload: {
       }),
     });
 
-    const body = (await response.json()) as TenantLoginResponse &
+    const body = (await readApiPayload(response)) as TenantLoginResponse &
       Record<string, unknown>;
 
     if (!response.ok) {
       return {
         success: false as const,
-        message: extractMessage(body, "Unable to sign in right now."),
+        message: extractMessage(
+          body,
+          response.status >= 500
+            ? "Sign-in service is unavailable right now."
+            : "Unable to sign in right now.",
+        ),
       };
     }
 
     return {
       success: true as const,
       message: body.message ?? "Sign-in challenge created.",
-      requiresOtp: Boolean(body.requires_otp),
-      challengeId:
-        typeof body.challenge_id === "string" ? body.challenge_id : null,
+      requiresOtp: resolveRequiresOtp(body),
+      challengeId: extractChallengeId(body),
+      organizationId:
+        typeof body.organization?.organization_id === "number"
+          ? body.organization.organization_id
+          : null,
       organizationName: body.organization?.name ?? "",
       organizationSubdomain: body.organization?.subdomain ?? payload.subdomain,
       email: body.user?.email ?? payload.email,
+      ...extractLoginRoutingContext(body),
       redirectTarget:
         typeof body.redirect_target === "string" ? body.redirect_target : null,
       tokens: extractTokens(body),
@@ -169,7 +355,7 @@ export async function loginTenant(payload: {
   } catch {
     return {
       success: false as const,
-      message: "Unable to sign in right now.",
+      message: "Unable to reach the sign-in service right now.",
     };
   }
 }
@@ -191,7 +377,7 @@ export async function verifyTenantLoginOtp(payload: {
       }),
     });
 
-    const body = (await response.json()) as TenantLoginResponse &
+    const body = (await readApiPayload(response)) as TenantLoginResponse &
       Record<string, unknown>;
 
     if (!response.ok) {
@@ -204,6 +390,11 @@ export async function verifyTenantLoginOtp(payload: {
     return {
       success: true as const,
       message: body.message ?? "Verification successful.",
+      organizationId:
+        typeof body.organization?.organization_id === "number"
+          ? body.organization.organization_id
+          : null,
+      ...extractLoginRoutingContext(body),
       redirectTarget:
         typeof body.redirect_target === "string" ? body.redirect_target : null,
       tokens: extractTokens(body),
@@ -211,7 +402,7 @@ export async function verifyTenantLoginOtp(payload: {
   } catch {
     return {
       success: false as const,
-      message: "Unable to verify the code right now.",
+      message: "Unable to reach the verification service right now.",
     };
   }
 }
@@ -229,7 +420,7 @@ export async function resendTenantLoginOtp(challengeId: string) {
       }),
     });
 
-    const body = (await response.json()) as Record<string, unknown>;
+    const body = (await readApiPayload(response)) as Record<string, unknown>;
 
     if (!response.ok) {
       return {
@@ -245,7 +436,7 @@ export async function resendTenantLoginOtp(challengeId: string) {
   } catch {
     return {
       success: false as const,
-      message: "Unable to resend the verification code.",
+      message: "Unable to reach the verification service right now.",
     };
   }
 }

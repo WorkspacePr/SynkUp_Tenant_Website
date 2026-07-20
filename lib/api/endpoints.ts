@@ -5,6 +5,7 @@ export const apiEndpoints = {
   tenantLogin: "/api/auth/tenant/login/",
   tenantLoginResendOtp: "/api/auth/tenant/login/resend-otp/",
   tenantLoginVerifyOtp: "/api/auth/tenant/login/verify-otp/",
+  logout: "/api/auth/logout/",
   tenantPasswordResetRequest: "/api/auth/tenant/password-reset/request/",
   tenantPasswordResetResend: "/api/auth/tenant/password-reset/resend/",
   tenantPasswordResetConfirm: "/api/auth/tenant/password-reset/confirm/",

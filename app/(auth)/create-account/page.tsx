@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { OnboardingFlow } from "@/features/onboarding/components/OnboardingFlow";
+import { OnboardingFlow } from "@/features/onboarding/components/flow/OnboardingFlow";
 
 export const metadata: Metadata = {
   title: "Create Organisation | SynkUp",

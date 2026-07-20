@@ -167,6 +167,12 @@ const fallbackReferenceData = {
     { value: "team", label: "Team" },
     { value: "class", label: "Class" },
   ] satisfies SelectOption[],
+  countryOptions: [
+    { value: "NG", label: "Nigeria" },
+    { value: "GH", label: "Ghana" },
+    { value: "KE", label: "Kenya" },
+    { value: "ZA", label: "South Africa" },
+  ] satisfies SelectOption[],
   audienceTypeOptions: [
     { value: "class", label: "Class" },
     { value: "department", label: "Department" },
@@ -578,6 +584,7 @@ export async function getReferenceData() {
     const industrySectorOptions = mapReferenceItemsToOptions(payload.industry_sector);
     const attendanceIdentifierOptions = mapReferenceItemsToOptions(payload.attendance_identifier);
     const unitTypeOptions = mapReferenceItemsToOptions(payload.unit_type);
+    const countryOptions = mapReferenceItemsToOptions(payload.country);
     const audienceTypeOptions = mapReferenceItemsToOptions(payload.audience_type);
 
     return {
@@ -597,6 +604,10 @@ export async function getReferenceData() {
         unitTypeOptions.length > 0
           ? unitTypeOptions
           : fallbackReferenceData.unitTypeOptions,
+      countryOptions:
+        countryOptions.length > 0
+          ? countryOptions
+          : fallbackReferenceData.countryOptions,
       audienceTypeOptions:
         audienceTypeOptions.length > 0
           ? audienceTypeOptions
