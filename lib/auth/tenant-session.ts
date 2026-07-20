@@ -180,7 +180,12 @@ export function buildTenantSignInUrl() {
     params.set("resume", "onboarding");
   }
 
-  if (context?.redirectTo?.trim()) {
+  const redirectTo = context?.redirectTo?.trim();
+  const shouldIncludeRedirectTo =
+    Boolean(redirectTo) &&
+    (redirectTo !== "/onboarding" || context?.resumeTarget === "onboarding");
+
+  if (shouldIncludeRedirectTo && redirectTo) {
     params.set("redirectTo", context.redirectTo);
   }
 

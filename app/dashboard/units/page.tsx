@@ -1,4 +1,4 @@
-import { TenantDashboardShowcase } from "@/features/dashboard/components/TenantDashboardShowcase";
+import { TenantDashboardShell } from "@/features/dashboard/components/shell/TenantDashboardShell";
 
 export default async function DashboardUnitsPage({
   searchParams,
@@ -8,7 +8,7 @@ export default async function DashboardUnitsPage({
   const params = await searchParams;
 
   return (
-    <TenantDashboardShowcase
+    <TenantDashboardShell
       initialSection="units"
       initialUnitWorkspaceView={params.view === "list" ? "list" : "overview"}
     />

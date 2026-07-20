@@ -1,4 +1,4 @@
-import { TenantDashboardShowcase } from "@/features/dashboard/components/TenantDashboardShowcase";
+import { TenantDashboardShell } from "@/features/dashboard/components/shell/TenantDashboardShell";
 
 export default async function DashboardUnitDetailPage({
   params,
@@ -9,7 +9,7 @@ export default async function DashboardUnitDetailPage({
   const parsedUnitId = Number(unitId);
 
   return (
-    <TenantDashboardShowcase
+    <TenantDashboardShell
       initialSection="units"
       initialUnitWorkspaceView="detail"
       initialUnitId={Number.isFinite(parsedUnitId) ? parsedUnitId : 1}

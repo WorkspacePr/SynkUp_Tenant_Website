@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 
-import { DashboardSessionGuard } from "@/features/auth/components/DashboardSessionGuard";
+import { DashboardSessionGuard } from "@/features/auth/components/session/DashboardSessionGuard";
 
 export default function DashboardLayout({
   children,

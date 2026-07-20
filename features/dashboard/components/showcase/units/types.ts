@@ -56,6 +56,7 @@ export type AudienceSummary = {
 };
 
 export type AssignedUnitAdmin = {
+  id?: number;
   name: string;
   email: string;
   role: AdminRole | "Lead Unit Admin";
@@ -111,6 +112,10 @@ export type AssignAdminModalProps = {
   open: boolean;
   onClose: () => void;
   unit: UnitSummary;
+  assignedAdmins?: AssignedUnitAdmin[];
+  adminOptions?: Array<{ id: number; name: string; email: string }>;
+  adminOptionsNote?: string;
+  onAssigned?: () => Promise<void> | void;
 };
 
 export type ArchiveUnitModalProps = {
@@ -118,6 +123,15 @@ export type ArchiveUnitModalProps = {
   open: boolean;
   onClose: () => void;
   unit: UnitSummary;
+  onArchived?: () => Promise<void> | void;
+};
+
+export type MoveUsersModalProps = {
+  darkMode: boolean;
+  open: boolean;
+  onClose: () => void;
+  unit: UnitSummary;
+  availableUnits?: UnitSummary[];
 };
 
 export type PaginationItem = number | "...";

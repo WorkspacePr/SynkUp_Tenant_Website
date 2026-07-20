@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+
 function getDjangoApiBase() {
   return process.env.DJANGO_API_BASE ?? process.env.NEXT_PUBLIC_DJANGO_API_BASE;
 }
@@ -61,4 +63,14 @@ export async function POST(request: NextRequest) {
       { status: 502 },
     );
   }
+}
+
+export async function GET() {
+  return NextResponse.json(
+    {
+      message:
+        "Tenant login is available. Submit credentials with POST to continue.",
+    },
+    { status: 405 },
+  );
 }

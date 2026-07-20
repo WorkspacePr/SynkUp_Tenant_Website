@@ -19,7 +19,8 @@ export type TenantUnitListItem = {
   country: string;
   type: string;
   created_at: string;
-  assigned_admin_summary: string;
+  updated_at?: string;
+  assigned_admin_summary: unknown;
   total_users: number;
   total_audiences: number;
   active_sessions: number;
@@ -52,6 +53,22 @@ export type TenantUnitsPlanUsage = {
     variant: string;
   } | null;
   subscription_status?: string | null;
+};
+
+export type TenantUnitOverviewSummaryCards = {
+  totalUnits: number;
+  activeUnits: number;
+  draftUnits: number;
+  archivedUnits: number;
+};
+
+export type TenantUnitsOverviewResponse = {
+  data: {
+    summaryCards: TenantUnitOverviewSummaryCards;
+    featuredUnits: TenantUnitListItem[];
+  };
+  meta?: unknown;
+  planUsage?: TenantUnitsPlanUsage | null;
 };
 
 export type TenantUnitsResponse = {
@@ -138,11 +155,18 @@ export type UnitAdminCandidate = {
 };
 
 export type UnitAssignedAdmin = {
+  id?: number;
   name: string;
   email: string;
   role: string;
   status: string;
   last_active: string;
+};
+
+export type UnitArchiveBlocker = {
+  code?: string;
+  title: string;
+  message?: string;
 };
 
 type ApiEnvelope = {
@@ -193,6 +217,14 @@ function normalizeAssignedAdmin(value: unknown): UnitAssignedAdmin | null {
   }
 
   return {
+    id:
+      typeof value.id === "number"
+        ? value.id
+        : typeof value.user_id === "number"
+          ? value.user_id
+          : typeof value.admin_id === "number"
+            ? value.admin_id
+            : undefined,
     name,
     email,
     role:
@@ -295,6 +327,116 @@ function normalizeEnvelope(payload: ApiEnvelope): TenantUnitsResponse {
   };
 }
 
+function extractApiErrorMessage(payload: unknown, fallback: string) {
+  if (!isRecord(payload)) {
+    return fallback;
+  }
+
+  const directMessage =
+    typeof payload.message === "string" && payload.message.trim()
+      ? payload.message.trim()
+      : typeof payload.detail === "string" && payload.detail.trim()
+        ? payload.detail.trim()
+        : null;
+
+  if (directMessage) {
+    return directMessage;
+  }
+
+  const errors = payload.errors;
+  if (Array.isArray(errors)) {
+    const firstError = errors.find(
+      (value) => typeof value === "string" && value.trim().length > 0,
+    );
+    if (typeof firstError === "string") {
+      return firstError.trim();
+    }
+  }
+
+  if (isRecord(errors)) {
+    for (const value of Object.values(errors)) {
+      if (Array.isArray(value) && value.length > 0) {
+        const first = value[0];
+        if (typeof first === "string" && first.trim()) {
+          return first.trim();
+        }
+      }
+
+      if (typeof value === "string" && value.trim()) {
+        return value.trim();
+      }
+    }
+  }
+
+  for (const value of Object.values(payload)) {
+    if (Array.isArray(value) && value.length > 0) {
+      const first = value[0];
+      if (typeof first === "string" && first.trim()) {
+        return first.trim();
+      }
+    }
+  }
+
+  return fallback;
+}
+
+function normalizeArchiveBlockers(value: unknown): UnitArchiveBlocker[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const normalized = value
+    .map((item) => {
+      if (typeof item === "string" && item.trim()) {
+        return { title: item.trim() };
+      }
+
+      if (!isRecord(item)) {
+        return null;
+      }
+
+      const title =
+        typeof item.title === "string" && item.title.trim()
+          ? item.title.trim()
+          : typeof item.label === "string" && item.label.trim()
+            ? item.label.trim()
+            : typeof item.message === "string" && item.message.trim()
+              ? item.message.trim()
+              : typeof item.code === "string" && item.code.trim()
+                ? item.code.trim()
+                : null;
+
+      if (!title) {
+        return null;
+      }
+
+      const rawMessage =
+        typeof item.message === "string" && item.message.trim() ? item.message.trim() : undefined;
+      const message =
+        rawMessage &&
+        rawMessage.localeCompare(title, undefined, { sensitivity: "accent" }) !== 0
+          ? rawMessage
+          : undefined;
+
+      return {
+        code: typeof item.code === "string" && item.code.trim() ? item.code.trim() : undefined,
+        title,
+        message,
+      } satisfies UnitArchiveBlocker;
+    })
+    .filter((item): item is UnitArchiveBlocker => item !== null);
+
+  const seen = new Set<string>();
+  return normalized.filter((item) => {
+    const key = `${item.code ?? ""}::${item.title.toLowerCase()}::${item.message?.toLowerCase() ?? ""}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
 export async function getTenantUnits(params: {
   page?: number;
   search?: string;
@@ -336,6 +478,52 @@ export async function getTenantUnits(params: {
   return {
     success: true as const,
     data: normalizeEnvelope(payload),
+  };
+}
+
+export async function getTenantUnitsOverview() {
+  const response = await fetch("/api/units/overview", {
+    method: "GET",
+    headers: await buildUnitsRequestHeaders(),
+    cache: "no-store",
+  });
+
+  const body = (await response.json()) as {
+    data?: {
+      summaryCards?: TenantUnitOverviewSummaryCards;
+      featuredUnits?: TenantUnitListItem[];
+    };
+    meta?: unknown;
+    planUsage?: TenantUnitsPlanUsage | null;
+    message?: string;
+    detail?: string;
+  };
+
+  if (!response.ok) {
+    return {
+      success: false as const,
+      message:
+        body.message?.trim() ||
+        body.detail?.trim() ||
+        "Unable to load unit overview right now.",
+    };
+  }
+
+  return {
+    success: true as const,
+    data: {
+      data: {
+        summaryCards: body.data?.summaryCards ?? {
+          totalUnits: 0,
+          activeUnits: 0,
+          draftUnits: 0,
+          archivedUnits: 0,
+        },
+        featuredUnits: Array.isArray(body.data?.featuredUnits) ? body.data.featuredUnits : [],
+      },
+      meta: body.meta ?? null,
+      planUsage: body.planUsage ?? null,
+    } satisfies TenantUnitsOverviewResponse,
   };
 }
 
@@ -509,4 +697,110 @@ export async function getAssignedUnitAdmins(unitId: number) {
       emptyState: body.meta?.emptyState ?? null,
     },
   };
+}
+
+export async function assignUnitAdmin(unitId: number, payload: { user_id: number }) {
+  const response = await fetch(`/api/units/${unitId}/admins/assign`, {
+    method: "POST",
+    headers: await buildUnitsRequestHeaders(true),
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  const body = (await response.json()) as { message?: string };
+
+  if (!response.ok) {
+    return {
+      success: false as const,
+      message: body.message?.trim() || "Unable to assign unit admin right now.",
+    };
+  }
+
+  return { success: true as const };
+}
+
+export async function reassignUnitAdmin(unitId: number, payload: Record<string, unknown>) {
+  const response = await fetch(`/api/units/${unitId}/admins/reassign`, {
+    method: "POST",
+    headers: await buildUnitsRequestHeaders(true),
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  const body = (await response.json()) as { message?: string };
+
+  if (!response.ok) {
+    return {
+      success: false as const,
+      message: body.message?.trim() || "Unable to reassign unit admin right now.",
+    };
+  }
+
+  return { success: true as const };
+}
+
+export async function removeUnitAdmin(unitId: number, payload: { user_id: number }) {
+  const response = await fetch(`/api/units/${unitId}/admins/remove`, {
+    method: "POST",
+    headers: await buildUnitsRequestHeaders(true),
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  const body = (await response.json()) as { message?: string };
+
+  if (!response.ok) {
+    return {
+      success: false as const,
+      message: body.message?.trim() || "Unable to remove unit admin right now.",
+    };
+  }
+
+  return { success: true as const };
+}
+
+export async function archiveUnit(
+  unitId: number,
+  payload: { reason: string; confirm: boolean; last_updated_at?: string },
+) {
+  let effectivePayload = payload;
+
+  if (!effectivePayload.last_updated_at) {
+    const detailResult = await getTenantUnitDetail(unitId);
+    if (detailResult.success && detailResult.data?.updated_at) {
+      effectivePayload = {
+        ...effectivePayload,
+        last_updated_at: detailResult.data.updated_at,
+      };
+    }
+  }
+
+  const response = await fetch(`/api/units/${unitId}/archive`, {
+    method: "POST",
+    headers: await buildUnitsRequestHeaders(true),
+    body: JSON.stringify(effectivePayload),
+    cache: "no-store",
+  });
+  const body = (await response.json()) as {
+    code?: string;
+    message?: string;
+    detail?: string;
+    errors?: unknown;
+    actionHint?: string | null;
+    blockers?: unknown;
+    data?: TenantUnitDetail;
+    [key: string]: unknown;
+  };
+
+  if (!response.ok) {
+    return {
+      success: false as const,
+      code: body.code,
+      message: extractApiErrorMessage(body, "Unable to archive unit right now."),
+      actionHint:
+        typeof body.actionHint === "string" && body.actionHint.trim()
+          ? body.actionHint.trim()
+          : null,
+      blockers: normalizeArchiveBlockers(body.blockers),
+    };
+  }
+
+  return { success: true as const, data: body.data };
 }

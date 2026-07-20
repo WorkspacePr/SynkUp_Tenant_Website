@@ -1,5 +1,5 @@
-import { TenantDashboardShowcase } from "@/features/dashboard/components/TenantDashboardShowcase";
+import { TenantDashboardShell } from "@/features/dashboard/components/shell/TenantDashboardShell";
 
 export default function DashboardPage() {
-  return <TenantDashboardShowcase />;
+  return <TenantDashboardShell />;
 }

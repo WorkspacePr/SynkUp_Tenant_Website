@@ -30,6 +30,8 @@ function buildForwardHeaders(request: NextRequest, includeJsonBody = false) {
   }
 
   const authorization = request.headers.get("authorization");
+
+  console.log(authorization)
   const cookie = request.headers.get("cookie");
 
   if (authorization) {

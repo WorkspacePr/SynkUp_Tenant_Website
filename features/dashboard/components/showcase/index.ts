@@ -1,4 +1,4 @@
-export { roleConfigs } from "./roleConfigs";
+export { roleConfigs } from "./config/roleConfigs";
 export {
   ActionQueueCard,
   AudienceLivePanel,
@@ -23,9 +23,9 @@ export {
   ToastCard,
   TrendCard,
   SystemHealthCard,
-} from "./ShowcaseParts";
-export { ShowcaseNavbar } from "./ShowcaseNavbar";
-export { ShowcaseSidebar } from "./ShowcaseSidebar";
+} from "./cards/ShowcaseParts";
+export { ShowcaseNavbar } from "./shell/ShowcaseNavbar";
+export { ShowcaseSidebar } from "./shell/ShowcaseSidebar";
 export type {
   ActionQueueItem,
   ActionQueuePanel,

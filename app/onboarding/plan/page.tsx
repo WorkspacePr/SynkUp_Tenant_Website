@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { OnboardingPlanPage } from "@/features/onboarding/components/OnboardingPlanPage";
+import { OnboardingPlanPage } from "@/features/onboarding/components/workspace/OnboardingPlanPage";
 
 export const metadata: Metadata = {
   title: "Choose a Plan | SynkUp",

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   ArrowRight,
+  Building2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -14,7 +15,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/utils";
-import { CompactSelect } from "../ShowcaseParts";
+import { CompactSelect } from "../cards/ShowcaseParts";
 import {
   OVERVIEW_METRICS,
   PLAN_LABEL,
@@ -24,6 +25,7 @@ import type {
   AssignedUnitAdmin,
   FilterSegment,
   FilterSelectConfig,
+  OverviewMetric,
   PaginationItem,
   UnitAlert,
   UnitLifecycleStatus,
@@ -40,7 +42,7 @@ export function MetricGridInternal({
   metrics,
 }: {
   darkMode: boolean;
-  metrics: typeof OVERVIEW_METRICS;
+  metrics: OverviewMetric[];
 }) {
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -57,6 +59,325 @@ export function MetricGridInternal({
         />
       ))}
     </div>
+  );
+}
+
+export function MetricGridSkeleton({
+  darkMode,
+}: {
+  darkMode: boolean;
+}) {
+  return (
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      {Array.from({ length: 4 }).map((_, index) => (
+        <Card
+          key={index}
+          className={cn(
+            "rounded-[22px] border p-6 shadow-[0_20px_50px_-36px_rgba(15,23,42,0.35)]",
+            darkMode
+              ? "border-slate-800 bg-slate-900 text-white"
+              : "border-slate-100 bg-white",
+          )}
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <SkeletonBlock className="h-4 w-24" />
+              <SkeletonBlock className="mt-4 h-9 w-16" />
+            </div>
+            <SkeletonBlock className="h-10 w-10 rounded-xl" />
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+export function SkeletonBlock({
+  className,
+}: {
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "animate-pulse rounded-xl bg-[linear-gradient(135deg,rgba(248,250,252,0.98)_0%,rgba(226,232,240,0.92)_48%,rgba(241,245,249,0.98)_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.95)] dark:bg-slate-800/80 dark:shadow-none",
+        className,
+      )}
+    />
+  );
+}
+
+export function UnitsOverviewSkeleton({
+  darkMode,
+}: {
+  darkMode: boolean;
+}) {
+  return (
+    <>
+      <div className="mt-6 grid gap-5 xl:grid-cols-2">
+        {Array.from({ length: 2 }).map((_, index) => (
+          <Card
+            key={index}
+            className={cn(
+              "overflow-hidden rounded-[22px] border shadow-[0_24px_60px_-40px_rgba(15,23,42,0.4)]",
+              darkMode
+                ? "border-slate-800 bg-slate-900 text-white"
+                : "border-slate-100 bg-white",
+            )}
+          >
+            <div className="flex items-start justify-between px-6 pt-4">
+              <SkeletonBlock className="h-6 w-20 rounded-full" />
+              <SkeletonBlock className="h-10 w-10 rounded-xl" />
+            </div>
+            <div className="px-6 pb-4 pt-3">
+              <SkeletonBlock className="h-10 w-56 max-w-full" />
+            </div>
+            <div className={cn("grid grid-cols-3 border-y", darkMode ? "border-slate-800" : "border-slate-200")}>
+              {Array.from({ length: 3 }).map((__, statIndex) => (
+                <div
+                  key={statIndex}
+                  className={cn(
+                    "border-r px-6 py-4 last:border-r-0",
+                    darkMode ? "border-slate-800" : "border-slate-200",
+                  )}
+                >
+                  <SkeletonBlock className="h-3 w-16" />
+                  <SkeletonBlock className="mt-3 h-9 w-20" />
+                </div>
+              ))}
+            </div>
+            <div className="px-6 py-4">
+              <div className="flex items-center justify-between gap-3">
+                <SkeletonBlock className="h-4 w-32" />
+                <SkeletonBlock className="h-4 w-24" />
+              </div>
+              <div className="mt-4 space-y-3">
+                {Array.from({ length: 4 }).map((__, adminIndex) => (
+                  <div key={adminIndex} className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <SkeletonBlock className="h-6 w-6 rounded-full" />
+                      <SkeletonBlock className="h-4 w-36" />
+                    </div>
+                    <SkeletonBlock className="h-5 w-14" />
+                  </div>
+                ))}
+              </div>
+              <SkeletonBlock className="mt-4 h-16 w-full rounded-2xl" />
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <SkeletonBlock className="h-11 w-full rounded-xl" />
+                <SkeletonBlock className="h-11 w-full rounded-xl" />
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
+    </>
+  );
+}
+
+export function UnitsTableSkeleton({
+  darkMode,
+  rows = 5,
+  columns = 7,
+}: {
+  darkMode: boolean;
+  rows?: number;
+  columns?: number;
+}) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="min-w-full text-left text-sm">
+        <thead
+          className={cn(
+            "text-[11px] font-bold uppercase tracking-[0.08em]",
+            darkMode ? "bg-slate-800 text-slate-300" : "bg-[#eef2f6] text-slate-500",
+          )}
+        >
+          <tr>
+            {Array.from({ length: columns }).map((_, index) => (
+              <th key={index} className="px-4 py-3">
+                <SkeletonBlock className="h-3 w-20" />
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {Array.from({ length: rows }).map((_, rowIndex) => (
+            <tr
+              key={rowIndex}
+              className={cn("border-t", darkMode ? "border-slate-800" : "border-slate-200")}
+            >
+              {Array.from({ length: columns }).map((__, columnIndex) => (
+                <td key={columnIndex} className="px-4 py-5">
+                  <SkeletonBlock className={cn("h-4", columnIndex === 0 ? "w-28" : "w-20")} />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+export function UnitAdminsTableSkeleton({
+  darkMode,
+}: {
+  darkMode: boolean;
+}) {
+  return <UnitsTableSkeleton darkMode={darkMode} rows={4} columns={6} />;
+}
+
+export function UnitDetailSkeleton({
+  darkMode,
+}: {
+  darkMode: boolean;
+}) {
+  return (
+    <div>
+      <SkeletonBlock className="h-5 w-32" />
+
+      <div className="flex flex-row items-center justify-between gap-4 pt-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <SkeletonBlock className="h-12 w-72 max-w-full" />
+          <SkeletonBlock className="h-6 w-24 rounded-full" />
+        </div>
+        <div className="flex items-center gap-2">
+          <SkeletonBlock className="h-11 w-28 rounded-xl" />
+          <SkeletonBlock className="h-11 w-11 rounded-xl" />
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-3">
+        <SkeletonBlock className="h-4 w-48" />
+        <SkeletonBlock className="h-4 w-36" />
+      </div>
+      <SkeletonBlock className="mt-3 h-4 w-60" />
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <SkeletonBlock key={index} className="h-8 w-28 rounded-full" />
+        ))}
+      </div>
+
+      <div className="mt-5 grid gap-5 xl:grid-cols-[1.05fr_2fr]">
+        <Card
+          className={cn(
+            "rounded-[22px] border p-6",
+            darkMode ? "border-slate-800 bg-slate-900" : "border-slate-100 bg-white",
+          )}
+        >
+          <div className="flex items-start justify-between gap-4">
+            <SkeletonBlock className="h-5 w-24" />
+            <SkeletonBlock className="h-10 w-10 rounded-xl" />
+          </div>
+          <SkeletonBlock className="mt-16 h-12 w-40" />
+          <SkeletonBlock className="mt-4 h-8 w-52" />
+        </Card>
+
+        <div className="grid gap-5 md:grid-cols-2">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <Card
+              key={index}
+              className={cn(
+                "rounded-[18px] border p-5",
+                darkMode ? "border-slate-800 bg-slate-900" : "border-slate-100 bg-white",
+              )}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <SkeletonBlock className="h-4 w-24" />
+                  <SkeletonBlock className="mt-4 h-7 w-16" />
+                </div>
+                <SkeletonBlock className="h-10 w-10 rounded-xl" />
+              </div>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      <Card
+        className={cn(
+          "mt-5 overflow-hidden rounded-[22px] border",
+          darkMode ? "border-slate-800 bg-slate-900 text-white" : "border-slate-100 bg-white",
+        )}
+      >
+        <div className="flex flex-wrap items-start justify-between gap-4 px-5 py-4">
+          <div>
+            <SkeletonBlock className="h-6 w-44" />
+            <SkeletonBlock className="mt-2 h-4 w-80 max-w-full" />
+          </div>
+          <SkeletonBlock className="h-11 w-32 rounded-xl" />
+        </div>
+        <UnitAdminsTableSkeleton darkMode={darkMode} />
+      </Card>
+
+      <Card
+        className={cn(
+          "mt-5 overflow-hidden rounded-[22px] border",
+          darkMode ? "border-slate-800 bg-slate-900 text-white" : "border-slate-100 bg-white",
+        )}
+      >
+        <div className="px-5 py-4">
+          <SkeletonBlock className="h-6 w-44" />
+          <SkeletonBlock className="mt-2 h-4 w-80 max-w-full" />
+        </div>
+        <UnitsTableSkeleton darkMode={darkMode} rows={5} columns={5} />
+      </Card>
+    </div>
+  );
+}
+
+export function UnitsEmptyState({
+  darkMode,
+  title = "No units yet",
+  body = "Create your first unit to start assigning admins, organising audiences, and tracking unit activity.",
+  actionLabel = "Create New Unit",
+  onAction,
+}: {
+  darkMode: boolean;
+  title?: string;
+  body?: string;
+  actionLabel?: string;
+  onAction?: () => void;
+}) {
+  return (
+    <Card
+      className={cn(
+        "mt-6 overflow-hidden rounded-[22px] border shadow-[0_20px_50px_-36px_rgba(15,23,42,0.35)]",
+        darkMode
+          ? "border-slate-800 bg-slate-900 text-white"
+          : "border-slate-100 bg-white",
+      )}
+    >
+      <div
+        className={cn(
+          "flex flex-col items-center gap-4 px-6 py-8 sm:px-8 sm:py-10",
+          darkMode ? "bg-slate-950/40" : "bg-[linear-gradient(180deg,#f8fffd_0%,#ffffff_100%)]",
+        )}
+      >
+        <div
+          className={cn(
+            "inline-flex h-14 w-14 items-center justify-center rounded-2xl",
+            darkMode ? "bg-slate-800 text-[#32d2c5]" : "bg-[#dff8f4] text-[#16a394]",
+          )}
+        >
+          <Building2 className="h-7 w-7" />
+        </div>
+        <div className="max-w-2xl">
+          <div className="text-xl font-semibold text-center tracking-[-0.03em]">{title}</div>
+          <p className={cn("mt-2 text-sm text-center leading-6", darkMode ? "text-slate-300" : "text-slate-500")}>
+            {body}
+          </p>
+        </div>
+        {onAction ? (
+          <Button className="min-h-11 rounded-xl px-5 py-3 text-sm" onClick={onAction}>
+            <PlusCircle className="h-4 w-4" />
+            {actionLabel}
+          </Button>
+        ) : null}
+      </div>
+    </Card>
   );
 }
 
@@ -679,12 +1000,14 @@ export function PlanUsageActions({
   planLimitReached,
   onCreateUnit,
   compact = false,
+  loading = false,
 }: {
   darkMode: boolean;
   unitUsageText: string;
   planLimitReached: boolean;
   onCreateUnit: () => void;
   compact?: boolean;
+  loading?: boolean;
 }) {
   return (
     <div className={cn("flex flex-wrap items-center gap-3", compact && "justify-end")}>
@@ -704,13 +1027,17 @@ export function PlanUsageActions({
         <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
           Units Used
         </div>
-        <div className="mt-1 text-sm font-semibold">{unitUsageText}</div>
+        {loading ? (
+          <SkeletonBlock className="mt-2 h-5 w-24" />
+        ) : (
+          <div className="mt-1 text-sm font-semibold">{unitUsageText}</div>
+        )}
       </div>
 
       <Button
         className="min-h-11 rounded-xl px-5 py-3 text-sm"
         onClick={onCreateUnit}
-        disabled={planLimitReached}
+        disabled={planLimitReached || loading}
         title={
           planLimitReached
             ? `Your current plan supports ${PLAN_UNIT_LIMIT} units.`

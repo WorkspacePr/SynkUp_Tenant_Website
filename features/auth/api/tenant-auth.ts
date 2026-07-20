@@ -93,6 +93,32 @@ function extractMessage(
   return fallback;
 }
 
+async function readApiPayload(response: Response) {
+  const contentType = response.headers.get("content-type") ?? "";
+  const rawText = await response.text();
+
+  if (contentType.includes("text/html")) {
+    return {
+      message:
+        "The sign-in request is being handled by the website instead of the authentication service. Restart the frontend server and try again.",
+    };
+  }
+
+  if (contentType.includes("application/json")) {
+    try {
+      return JSON.parse(rawText) as Record<string, unknown>;
+    } catch {
+      return {
+        message: rawText || "Invalid JSON response from authentication service.",
+      };
+    }
+  }
+
+  return {
+    message: rawText || `Authentication service returned HTTP ${response.status}.`,
+  };
+}
+
 function extractTokens(payload: TenantLoginResponse) {
   const rawPayload = payload as Record<string, unknown>;
   const rawAccessValue = rawPayload["access"];
@@ -242,7 +268,7 @@ export async function findTenantOrganization(subdomain: string) {
       }),
     });
 
-    const body = (await response.json()) as FindTenantOrganizationResponse &
+    const body = (await readApiPayload(response)) as FindTenantOrganizationResponse &
       Record<string, unknown>;
 
     if (!response.ok || !body.organization) {
@@ -266,7 +292,7 @@ export async function findTenantOrganization(subdomain: string) {
   } catch {
     return {
       success: false as const,
-      message: "Unable to find that organisation right now.",
+      message: "Unable to reach the organisation lookup service right now.",
     };
   }
 }
@@ -294,13 +320,18 @@ export async function loginTenant(payload: {
       }),
     });
 
-    const body = (await response.json()) as TenantLoginResponse &
+    const body = (await readApiPayload(response)) as TenantLoginResponse &
       Record<string, unknown>;
 
     if (!response.ok) {
       return {
         success: false as const,
-        message: extractMessage(body, "Unable to sign in right now."),
+        message: extractMessage(
+          body,
+          response.status >= 500
+            ? "Sign-in service is unavailable right now."
+            : "Unable to sign in right now.",
+        ),
       };
     }
 
@@ -324,7 +355,7 @@ export async function loginTenant(payload: {
   } catch {
     return {
       success: false as const,
-      message: "Unable to sign in right now.",
+      message: "Unable to reach the sign-in service right now.",
     };
   }
 }
@@ -346,7 +377,7 @@ export async function verifyTenantLoginOtp(payload: {
       }),
     });
 
-    const body = (await response.json()) as TenantLoginResponse &
+    const body = (await readApiPayload(response)) as TenantLoginResponse &
       Record<string, unknown>;
 
     if (!response.ok) {
@@ -371,7 +402,7 @@ export async function verifyTenantLoginOtp(payload: {
   } catch {
     return {
       success: false as const,
-      message: "Unable to verify the code right now.",
+      message: "Unable to reach the verification service right now.",
     };
   }
 }
@@ -389,7 +420,7 @@ export async function resendTenantLoginOtp(challengeId: string) {
       }),
     });
 
-    const body = (await response.json()) as Record<string, unknown>;
+    const body = (await readApiPayload(response)) as Record<string, unknown>;
 
     if (!response.ok) {
       return {
@@ -405,7 +436,7 @@ export async function resendTenantLoginOtp(challengeId: string) {
   } catch {
     return {
       success: false as const,
-      message: "Unable to resend the verification code.",
+      message: "Unable to reach the verification service right now.",
     };
   }
 }
