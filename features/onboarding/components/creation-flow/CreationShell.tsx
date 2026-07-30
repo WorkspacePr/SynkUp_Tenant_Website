@@ -3,6 +3,7 @@
 import Link from "next/link";
 
 import { AuthShell } from "@/components/layout/AuthShell";
+import { BrandLogo } from "@/components/ui/BrandLogo";
 import { Stepper } from "@/components/ui/Stepper";
 import { cn } from "@/utils";
 
@@ -38,7 +39,15 @@ function CreationPanel({
   return (
     <div className="flex flex-col bg-[#fbfbff] px-6 py-6 sm:px-10 sm:py-8 lg:px-14 lg:py-10">
       <header className="flex items-center justify-between gap-4">
-        <Stepper label={`STEP ${phase} OF 3`} phase={phase} />
+        <div className="flex items-center gap-4">
+          <BrandLogo
+            priority
+            className="lg:hidden"
+            imageClassName="h-9 w-9"
+            labelClassName="text-primary"
+          />
+          <Stepper label={`STEP ${phase} OF 3`} phase={phase} />
+        </div>
         <Link
           href="/signin"
           className="inline-flex min-h-11 items-center justify-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-[0_18px_34px_-24px_rgba(13,148,136,0.9)] transition hover:bg-[#0b857b] sm:px-6"
@@ -76,9 +85,11 @@ export function CreationShell({
         <section className="w-full overflow-hidden bg-card">
           <div className="flex min-h-screen flex-col bg-[#f5f7fb]">
             <header className="flex items-center justify-between border-b border-border/70 bg-card px-8 py-7 lg:px-10">
-              <div className="text-2xl font-extrabold tracking-[-0.04em] text-primary">
-                SynkUp
-              </div>
+              <BrandLogo
+                priority
+                imageClassName="h-11 w-11"
+                labelClassName="text-2xl text-primary"
+              />
               <Link
                 href="/signin"
                 className="inline-flex min-h-11 items-center justify-center rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-[0_18px_34px_-24px_rgba(13,148,136,0.9)] transition hover:bg-[#0b857b]"
@@ -113,7 +124,7 @@ export function CreationShell({
         },
         {
           title: "Audiences",
-          description: "End-users, Students, or Employees.",
+          description: "Users, members, employees, or customers.",
           icon: "users" as const,
         },
       ],

@@ -2,6 +2,7 @@
 
 import { X } from "lucide-react";
 
+import { BrandLogo } from "@/components/ui/BrandLogo";
 import { cn } from "@/utils";
 
 import { SidebarItem, ThemeSwitch } from "../cards/ShowcaseParts";
@@ -37,14 +38,16 @@ export function ShowcaseSidebar({
   const sidebarContent = (
     <div className="flex min-h-full flex-col px-5 py-6">
       <div>
-        <div
-          className={cn(
-            "mb-10 text-[36px] font-semibold tracking-tighter",
+        <BrandLogo
+          priority
+          showLabel={!sidebarCollapsed}
+          className={cn("mb-10", sidebarCollapsed && "justify-center")}
+          imageClassName="h-12 w-12"
+          labelClassName={cn(
+            "text-[30px] font-semibold tracking-tighter",
             darkMode ? "text-white" : "text-[#2d3b1f]",
           )}
-        >
-          {sidebarCollapsed ? "S" : "Synkup"}
-        </div>
+        />
 
         {!sidebarCollapsed ? (
           <div className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">

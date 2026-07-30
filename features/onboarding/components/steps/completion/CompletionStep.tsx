@@ -2,6 +2,7 @@ import Image from "next/image";
 import { Button } from "@/components/ui/Button";
 import { ArrowLeftIcon, ArrowRightIcon, CheckIcon } from "@/components/ui/Icons";
 import { FormError } from "@/components/ui/FormError";
+import { formatDisplayLabel } from "@/lib/formatters";
 import type { OrganizationOnboardingLaunchChecklist } from "@/types/onboarding";
 
 interface CompletionStepProps {
@@ -12,15 +13,6 @@ interface CompletionStepProps {
   onBack: () => void;
   onLaunch: () => void;
   onGoToDashboard: () => void;
-}
-
-function formatPlanName(planName: string) {
-  return planName
-    .trim()
-    .split(/[_\s-]+/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-    .join(" ");
 }
 
 export function CompletionStep({
@@ -42,7 +34,7 @@ export function CompletionStep({
     `${checklist?.active_admin_count ?? 0} active admin${checklist?.active_admin_count === 1 ? "" : "s"}`,
     `${checklist?.pending_invite_count ?? 0} pending invite${checklist?.pending_invite_count === 1 ? "" : "s"}`,
     checklist?.plan_name
-      ? `Plan: ${formatPlanName(checklist.plan_name)}`
+      ? `Plan: ${formatDisplayLabel(checklist.plan_name)}`
       : "Plan selected",
   ];
 

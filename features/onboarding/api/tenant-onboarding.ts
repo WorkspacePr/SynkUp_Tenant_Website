@@ -19,11 +19,13 @@ import type {
 } from "@/types/onboarding";
 import type { SelectOption } from "@/components/ui/Select";
 import {
-  buildTenantSignInUrl,
+  clearStoredOnboardingTokens as clearStoredTenantSessionTokens,
   ONBOARDING_ACCESS_TOKEN_STORAGE_KEY,
   ONBOARDING_REFRESH_TOKEN_STORAGE_KEY,
+  redirectToTenantSignIn,
 } from "@/lib/auth/tenant-session";
 import { apiEndpoints, buildApiUrl } from "@/lib/api/endpoints";
+import { formatApiError } from "@/lib/api/errors";
 
 interface ReferenceDataItem {
   code: string;
@@ -290,50 +292,7 @@ function extractApiErrorMessage(
   payload: unknown,
   fallbackMessage: string,
 ) {
-  if (!payload || typeof payload !== "object") {
-    return fallbackMessage;
-  }
-
-  const maybeRecord = payload as Record<string, unknown>;
-
-  if (typeof maybeRecord.message === "string" && maybeRecord.message.trim()) {
-    const detailsMessage = extractApiErrorDetailsMessage(maybeRecord.details);
-    const message = detailsMessage ?? maybeRecord.message;
-    handleAuthenticationFailureMessage(message);
-    return message;
-  }
-
-  if (typeof maybeRecord.detail === "string" && maybeRecord.detail.trim()) {
-    handleAuthenticationFailureMessage(maybeRecord.detail);
-    return maybeRecord.detail;
-  }
-
-  const detailsMessage = extractApiErrorDetailsMessage(maybeRecord.details);
-  if (detailsMessage) {
-    handleAuthenticationFailureMessage(detailsMessage);
-    return detailsMessage;
-  }
-
-  const fieldMessages = Object.entries(maybeRecord)
-    .flatMap(([field, value]) => {
-      if (field === "message" || field === "code" || field === "details") {
-        return [];
-      }
-
-      if (Array.isArray(value)) {
-        return value
-          .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
-          .map((item) => item);
-      }
-
-      if (typeof value === "string" && value.trim()) {
-        return [value];
-      }
-
-      return [];
-    });
-
-  const message = fieldMessages[0] ?? fallbackMessage;
+  const message = formatApiError(payload, fallbackMessage);
   handleAuthenticationFailureMessage(message);
   return message;
 }
@@ -360,30 +319,6 @@ function handleAuthenticationFailureMessage(message: string) {
   redirectToSignIn();
 }
 
-function extractApiErrorDetailsMessage(details: unknown) {
-  if (!details || typeof details !== "object") {
-    return null;
-  }
-
-  const detailRecord = details as Record<string, unknown>;
-  const fieldMessages = Object.entries(detailRecord)
-    .flatMap(([field, value]) => {
-      if (Array.isArray(value)) {
-        return value
-          .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
-          .map((item) => item);
-      }
-
-      if (typeof value === "string" && value.trim()) {
-        return [value];
-      }
-
-      return [];
-    });
-
-  return fieldMessages[0] ?? null;
-}
-
 function buildSubdomainAvailabilityUrl(subdomain: string) {
   const pathOrUrl = buildApiUrl(apiEndpoints.subdomainAvailability);
   const url = /^https?:\/\//i.test(pathOrUrl)
@@ -408,16 +343,14 @@ function isTokenExpired(token: string) {
 }
 
 function clearStoredOnboardingTokens() {
-  if (typeof window === "undefined") return;
-  window.sessionStorage.removeItem(ONBOARDING_ACCESS_TOKEN_STORAGE_KEY);
-  window.sessionStorage.removeItem(ONBOARDING_REFRESH_TOKEN_STORAGE_KEY);
+  clearStoredTenantSessionTokens();
 }
 
 function redirectToSignIn() {
   if (typeof window === "undefined") return;
   if (hasRequestedSignInRedirect) return;
   hasRequestedSignInRedirect = true;
-  window.location.href = buildTenantSignInUrl();
+  redirectToTenantSignIn();
 }
 
 async function refreshOnboardingAccessToken() {

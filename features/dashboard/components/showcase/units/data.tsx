@@ -217,7 +217,7 @@ export const AUDIENCE_LOOKUP: Record<number, AudienceSummary[]> = {
     { name: "Computer Laboratory", admin: "Prof. John Doe", totalUsers: "8,249", status: "LIVE" },
   ],
   2: [
-    { name: "MBA Students", admin: "Prof. John Doe", totalUsers: "7,149", status: "LIVE" },
+    { name: "Leadership Cohort", admin: "John Doe", totalUsers: "7,149", status: "LIVE" },
     { name: "Biochemistry", admin: "Mrs. Akaonye Ifeoma", totalUsers: "7,149", status: "REVIEW" },
     { name: "Anatomy Lab", admin: "Mr. Joseph Momoh", totalUsers: "7,149", status: "LIVE" },
     { name: "Nursing Clinicals", admin: "Dr. Theophilus Gregory", totalUsers: "7,149", status: "FLAGGED" },

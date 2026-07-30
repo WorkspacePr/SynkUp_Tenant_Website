@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/utils";
+import { formatDisplayLabel } from "@/lib/formatters";
 import { CompactSelect } from "../cards/ShowcaseParts";
 import {
   OVERVIEW_METRICS,
@@ -52,8 +53,7 @@ export function MetricGridInternal({
           darkMode={darkMode}
           title={metric.title}
           value={metric.value}
-          icon={metric.icon}
-          accent={metric.accent}
+          variant="simple"
           titleClassName={metric.titleClassName}
           valueClassName={metric.valueClassName}
         />
@@ -73,19 +73,14 @@ export function MetricGridSkeleton({
         <Card
           key={index}
           className={cn(
-            "rounded-[22px] border p-6 shadow-[0_20px_50px_-36px_rgba(15,23,42,0.35)]",
+            "rounded-[18px] border px-4 py-4 shadow-none",
             darkMode
               ? "border-slate-800 bg-slate-900 text-white"
-              : "border-slate-100 bg-white",
+              : "border-slate-200 bg-white",
           )}
         >
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0 flex-1">
-              <SkeletonBlock className="h-4 w-24" />
-              <SkeletonBlock className="mt-4 h-9 w-16" />
-            </div>
-            <SkeletonBlock className="h-10 w-10 rounded-xl" />
-          </div>
+          <SkeletonBlock className="h-3 w-24" />
+          <SkeletonBlock className="mt-2 h-7 w-14" />
         </Card>
       ))}
     </div>
@@ -113,65 +108,104 @@ export function UnitsOverviewSkeleton({
   darkMode: boolean;
 }) {
   return (
-    <>
-      <div className="mt-6 grid gap-5 xl:grid-cols-2">
-        {Array.from({ length: 2 }).map((_, index) => (
-          <Card
-            key={index}
-            className={cn(
-              "overflow-hidden rounded-[22px] border shadow-[0_24px_60px_-40px_rgba(15,23,42,0.4)]",
-              darkMode
-                ? "border-slate-800 bg-slate-900 text-white"
-                : "border-slate-100 bg-white",
-            )}
-          >
-            <div className="flex items-start justify-between px-6 pt-4">
-              <SkeletonBlock className="h-6 w-20 rounded-full" />
-              <SkeletonBlock className="h-10 w-10 rounded-xl" />
-            </div>
-            <div className="px-6 pb-4 pt-3">
-              <SkeletonBlock className="h-10 w-56 max-w-full" />
-            </div>
-            <div className={cn("grid grid-cols-3 border-y", darkMode ? "border-slate-800" : "border-slate-200")}>
-              {Array.from({ length: 3 }).map((__, statIndex) => (
-                <div
-                  key={statIndex}
-                  className={cn(
-                    "border-r px-6 py-4 last:border-r-0",
-                    darkMode ? "border-slate-800" : "border-slate-200",
-                  )}
-                >
-                  <SkeletonBlock className="h-3 w-16" />
-                  <SkeletonBlock className="mt-3 h-9 w-20" />
+    <div>
+      <div className="mt-6 flex gap-2">
+        <SkeletonBlock className="h-10 w-24 rounded-xl" />
+        <SkeletonBlock className="h-10 w-22 rounded-xl" />
+      </div>
+
+      <Card
+        className={cn(
+          "mt-3 overflow-hidden rounded-[22px] border",
+          darkMode
+            ? "border-slate-800 bg-slate-900 text-white"
+            : "border-slate-100 bg-white",
+        )}
+      >
+        <div
+          className={cn(
+            "flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4",
+            darkMode ? "border-slate-800" : "border-slate-100",
+          )}
+        >
+          <SkeletonBlock className="h-11 w-72 max-w-full rounded-xl" />
+          <div className="flex flex-wrap gap-3">
+            <SkeletonBlock className="h-11 w-32 rounded-xl" />
+            <SkeletonBlock className="h-11 w-32 rounded-xl" />
+          </div>
+        </div>
+
+        <div className="grid gap-4 p-4 xl:grid-cols-2">
+          {Array.from({ length: 2 }).map((_, index) => (
+            <Card
+              key={index}
+              className={cn(
+                "overflow-hidden rounded-[18px] border px-6 py-5 shadow-none",
+                darkMode
+                  ? "border-slate-800 bg-slate-900 text-white"
+                  : "border-[#b8c9bf] bg-white text-slate-900",
+              )}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <SkeletonBlock className="h-10 w-56 max-w-full" />
+                <div className="flex items-center gap-3">
+                  <SkeletonBlock className="h-6 w-18 rounded-full" />
+                  <SkeletonBlock className="h-8 w-8 rounded-lg" />
                 </div>
-              ))}
-            </div>
-            <div className="px-6 py-4">
-              <div className="flex items-center justify-between gap-3">
-                <SkeletonBlock className="h-4 w-32" />
-                <SkeletonBlock className="h-4 w-24" />
               </div>
-              <div className="mt-4 space-y-3">
-                {Array.from({ length: 4 }).map((__, adminIndex) => (
-                  <div key={adminIndex} className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <SkeletonBlock className="h-6 w-6 rounded-full" />
-                      <SkeletonBlock className="h-4 w-36" />
-                    </div>
-                    <SkeletonBlock className="h-5 w-14" />
+
+              <div className="mt-6 grid grid-cols-3 gap-4 border-y border-slate-200 py-5 dark:border-slate-800">
+                {Array.from({ length: 3 }).map((__, statIndex) => (
+                  <div key={statIndex} className="text-center">
+                    <SkeletonBlock className="mx-auto h-8 w-16" />
+                    <SkeletonBlock className="mx-auto mt-2 h-3 w-14" />
                   </div>
                 ))}
               </div>
-              <SkeletonBlock className="mt-4 h-16 w-full rounded-2xl" />
+
+              <div className="mt-5">
+                <div className="flex items-center justify-between gap-3">
+                  <SkeletonBlock className="h-4 w-28" />
+                  <SkeletonBlock className="h-4 w-24" />
+                </div>
+                <div className="mt-4 space-y-3">
+                  {Array.from({ length: 3 }).map((__, adminIndex) => (
+                    <div key={adminIndex} className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <SkeletonBlock className="h-7 w-7 rounded-full" />
+                        <SkeletonBlock className="h-4 w-32" />
+                      </div>
+                      <SkeletonBlock className="h-4 w-12" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <SkeletonBlock className="mt-5 h-14 w-full rounded-2xl" />
+
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 <SkeletonBlock className="h-11 w-full rounded-xl" />
                 <SkeletonBlock className="h-11 w-full rounded-xl" />
               </div>
-            </div>
-          </Card>
-        ))}
-      </div>
-    </>
+            </Card>
+          ))}
+        </div>
+
+        <div
+          className={cn(
+            "flex flex-wrap items-center justify-between gap-4 border-t px-5 py-4",
+            darkMode ? "border-slate-800" : "border-slate-100",
+          )}
+        >
+          <SkeletonBlock className="h-4 w-44" />
+          <div className="flex items-center gap-2">
+            <SkeletonBlock className="h-8 w-8 rounded-lg" />
+            <SkeletonBlock className="h-8 w-8 rounded-lg" />
+            <SkeletonBlock className="h-8 w-8 rounded-lg" />
+          </div>
+        </div>
+      </Card>
+    </div>
   );
 }
 
@@ -215,6 +249,42 @@ export function UnitsTableSkeleton({
             </tr>
           ))}
         </tbody>
+      </table>
+    </div>
+  );
+}
+
+export function DashboardDataTable({
+  darkMode,
+  headers,
+  children,
+  minWidthClassName = "min-w-full",
+}: {
+  darkMode: boolean;
+  headers: string[];
+  children: ReactNode;
+  minWidthClassName?: string;
+}) {
+  return (
+    <div className="overflow-x-auto">
+      <table className={cn("w-full text-left text-sm", minWidthClassName)}>
+        <thead
+          className={cn(
+            "text-[11px] font-bold uppercase tracking-[0.08em]",
+            darkMode
+              ? "bg-slate-800 text-slate-300"
+              : "bg-[#eef2f6] text-slate-500",
+          )}
+        >
+          <tr>
+            {headers.map((header, index) => (
+              <th key={`${header}-${index}`} className="px-4 py-3">
+                {header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>{children}</tbody>
       </table>
     </div>
   );
@@ -401,13 +471,28 @@ export function TableFilterBar({
   onSegmentChange: (value: string) => void;
 }) {
   return (
-    <div
-      className={cn(
-        "flex flex-wrap items-start justify-between gap-3 border-b px-4 py-3",
-        darkMode ? "border-slate-800" : "border-slate-100",
-      )}
-    >
-      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center gap-3 px-0 py-3">
+      <label
+        className={cn(
+          "flex min-h-11 min-w-[260px] flex-1 items-center gap-2 rounded-xl border px-4 text-sm",
+          darkMode
+            ? "border-slate-700 bg-slate-900 text-slate-300"
+            : "border-[#dbe2ea] bg-[#eef1f5] text-slate-500",
+        )}
+      >
+        <Search className="h-4 w-4 shrink-0" />
+        <input
+          value={searchValue}
+          onChange={(event) => onSearchChange(event.target.value)}
+          placeholder={searchPlaceholder}
+          className={cn(
+            "w-full bg-transparent outline-none placeholder:text-inherit",
+            darkMode ? "text-white" : "text-slate-700",
+          )}
+        />
+      </label>
+
+      <div className="flex min-w-0 flex-wrap items-center gap-3">
         {selects.map((select) => (
           <CompactSelect
             key={select.label}
@@ -416,19 +501,19 @@ export function TableFilterBar({
             onChange={select.onChange}
             className={cn("w-auto", select.className)}
             buttonClassName={cn(
-              "min-h-10 rounded-xl border px-3.5 text-sm font-semibold shadow-none",
+              "min-h-11 rounded-xl border px-4 text-sm font-medium shadow-none",
               darkMode
-                ? "border-slate-700 bg-slate-950 text-slate-200"
-                : "border-slate-200 bg-white text-slate-700",
+                ? "border-slate-700 bg-slate-900 text-slate-200"
+                : "border-[#dbe2ea] bg-[#eef1f5] text-slate-700",
             )}
             darkMode={darkMode}
           />
         ))}
 
-        <div
+        {segments.length ? <div
           className={cn(
             "flex flex-wrap items-center gap-1 rounded-xl border p-1",
-            darkMode ? "border-slate-700 bg-slate-950" : "border-slate-200 bg-slate-50",
+            darkMode ? "border-slate-700 bg-slate-900" : "border-[#dbe2ea] bg-[#eef1f5]",
           )}
         >
           {segments.map((segment) => {
@@ -466,28 +551,8 @@ export function TableFilterBar({
               </button>
             );
           })}
-        </div>
+        </div> : null}
       </div>
-
-      <label
-        className={cn(
-          "flex min-h-10 w-full items-center gap-2 rounded-xl border px-3 text-sm md:max-w-72",
-          darkMode
-            ? "border-slate-700 bg-slate-950 text-slate-300"
-            : "border-slate-200 bg-white text-slate-500",
-        )}
-      >
-        <Search className="h-4 w-4 shrink-0" />
-        <input
-          value={searchValue}
-          onChange={(event) => onSearchChange(event.target.value)}
-          placeholder={searchPlaceholder}
-          className={cn(
-            "w-full bg-transparent outline-none placeholder:text-inherit",
-            darkMode ? "text-white" : "text-slate-700",
-          )}
-        />
-      </label>
     </div>
   );
 }
@@ -669,36 +734,57 @@ export function DetailMetricCard({
   valueClassName,
   interactive,
   helperText,
+  variant = "default",
 }: {
   darkMode: boolean;
   title: string;
   value: string;
-  icon: ReactNode;
+  icon?: ReactNode;
   accent?: "green";
   titleClassName?: string;
   valueClassName?: string;
   interactive?: boolean;
   helperText?: string;
+  variant?: "default" | "simple";
 }) {
   return (
     <Card
       className={cn(
-        "rounded-[18px] border p-5 shadow-[0_16px_40px_-30px_rgba(15,23,42,0.35)]",
+        variant === "simple"
+          ? "rounded-[18px] border px-4 py-4 shadow-none"
+          : "rounded-[18px] border p-5 shadow-[0_16px_40px_-30px_rgba(15,23,42,0.35)]",
         interactive &&
           "transition hover:-translate-y-0.5 hover:shadow-[0_20px_46px_-28px_rgba(15,23,42,0.4)]",
-        accent === "green"
+        variant === "simple"
+          ? darkMode
+            ? "border-slate-800 bg-slate-900 text-white"
+            : "border-slate-200 bg-white text-[#232323]"
+          : accent === "green"
           ? "border-[#22a85a] text-white"
           : darkMode
             ? "border-slate-800 bg-slate-900 text-white"
             : "border-slate-100 bg-white text-[#232323]",
       )}
-      style={accent === "green" ? { backgroundColor: "#28b463" } : undefined}
+      style={
+        variant !== "simple" && accent === "green"
+          ? { backgroundColor: "#28b463" }
+          : undefined
+      }
     >
-      <div className="flex items-start justify-between gap-4">
+      <div
+        className={cn(
+          "flex gap-4",
+          variant === "simple"
+            ? "flex-col items-start justify-start"
+            : "items-start justify-between",
+        )}
+      >
         <div className="min-w-0">
           <div
             className={cn(
-              "whitespace-pre-line text-[16px] leading-[1.15]",
+              variant === "simple"
+                ? "text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500"
+                : "whitespace-pre-line text-[16px] leading-[1.15]",
               accent === "green" ? "text-white" : titleClassName,
             )}
           >
@@ -706,7 +792,9 @@ export function DetailMetricCard({
           </div>
           <div
             className={cn(
-              "mt-4 text-[18px] font-bold leading-none",
+              variant === "simple"
+                ? "mt-2 text-xl font-bold leading-none text-primary"
+                : "mt-4 text-[18px] font-bold leading-none",
               accent === "green" ? "text-white" : valueClassName,
             )}
           >
@@ -723,13 +811,19 @@ export function DetailMetricCard({
             </div>
           ) : null}
         </div>
-        <div
-          className={cn(
-            accent === "green" ? "text-white" : darkMode ? "text-white" : "text-black",
-          )}
-        >
-          {icon}
-        </div>
+        {icon ? (
+          <div
+            className={cn(
+              accent === "green"
+                ? "text-white"
+                : darkMode
+                  ? "text-white"
+                  : "text-black",
+            )}
+          >
+            {icon}
+          </div>
+        ) : null}
       </div>
     </Card>
   );
@@ -976,13 +1070,18 @@ export function InlineNotice({
   tone,
   title,
   body,
+  darkMode = false,
 }: {
   tone: "warning" | "danger";
   title: string;
   body: string;
+  darkMode?: boolean;
 }) {
-  const classes =
-    tone === "danger"
+  const classes = darkMode
+    ? tone === "danger"
+      ? "border-red-500/30 bg-red-500/10 text-red-300"
+      : "border-amber-500/30 bg-amber-500/10 text-amber-300"
+    : tone === "danger"
       ? "border-[#ffd4d4] bg-[#fff5f5] text-[#b91c1c]"
       : "border-[#ffe4b5] bg-[#fff8e1] text-[#b45309]";
 
@@ -1128,9 +1227,5 @@ export function AvatarSeed({ seed }: { seed: string }) {
 }
 
 export function toTitleCase(value: string) {
-  return value
-    .toLowerCase()
-    .split(" ")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
+  return formatDisplayLabel(value);
 }

@@ -2,6 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  DashboardToast,
+  type DashboardToastTone,
+} from "@/components/ui/DashboardToast";
+import {
   getAssignedUnitAdmins,
   getTenantUnitDetail,
   getTenantUnitsOverview,
@@ -15,6 +19,7 @@ import {
 } from "@/features/dashboard/api/tenant-units";
 import { getReferenceData } from "@/features/onboarding/api/tenant-onboarding";
 import { readTenantLoginContext } from "@/lib/auth/tenant-session";
+import { formatDate, formatNumber } from "@/lib/formatters";
 import {
   AUDIENCE_LOOKUP,
   OVERVIEW_METRICS,
@@ -22,7 +27,7 @@ import {
   UNLIMITED_UNITS,
 } from "./data";
 import { CreateUnitModal } from "./modals";
-import { UnitDetailSkeleton } from "./shared";
+import { UnitDetailSkeleton, UnitsEmptyState } from "./shared";
 import type {
   OverviewMetric,
   AssignedUnitAdmin,
@@ -32,22 +37,18 @@ import type {
 } from "./types";
 import { UnitDetail, UnitsList, UnitsOverview } from "./views";
 
+type ToastNotice = {
+  tone: DashboardToastTone;
+  title: string;
+  description: string;
+};
+
 function formatCount(value: number) {
-  return new Intl.NumberFormat("en-US").format(value);
+  return formatNumber(value, "0");
 }
 
 function formatCreatedAt(value: string) {
-  const parsed = new Date(value);
-
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  }).format(parsed);
+  return formatDate(value);
 }
 
 function normalizeLifecycleStatus(value: string): UnitLifecycleStatus {
@@ -287,6 +288,15 @@ export function UnitsWorkspace({
   const [overviewLoading, setOverviewLoading] = useState(true);
   const [overviewError, setOverviewError] = useState("");
   const [overviewPlanUsage, setOverviewPlanUsage] = useState<TenantUnitsPlanUsage | null>(null);
+  const [toast, setToast] = useState<ToastNotice | null>(null);
+
+  function showToast(
+    tone: DashboardToastTone,
+    title: string,
+    description: string,
+  ) {
+    setToast({ tone, title, description });
+  }
 
   const loadUnits = async (
     nextPage = page,
@@ -302,6 +312,7 @@ export function UnitsWorkspace({
 
     if (!result.success) {
       setError(result.message);
+      showToast("error", "Unable to load units", result.message);
       setUnits([]);
       setHasLoadedUnits(true);
       return;
@@ -321,6 +332,7 @@ export function UnitsWorkspace({
 
     if (!result.success) {
       setAssignedAdminsError(result.message);
+      showToast("error", "Unable to load unit admins", result.message);
       setAssignedAdmins([]);
       setAssignedAdminsLoading(false);
       return;
@@ -367,6 +379,7 @@ export function UnitsWorkspace({
 
       if (!result.success) {
         setOverviewError(result.message);
+        showToast("error", "Unable to load units overview", result.message);
         setOverviewUnits([]);
         setOverviewMetrics([]);
         setOverviewLoading(false);
@@ -463,6 +476,7 @@ export function UnitsWorkspace({
 
       if (!result.success) {
         setDetailError(result.message);
+        showToast("error", "Unable to load unit", result.message);
         setDetailUnit(null);
         setDetailLoading(false);
         return;
@@ -470,6 +484,11 @@ export function UnitsWorkspace({
 
       if (!result.data) {
         setDetailError("Unit detail payload was empty.");
+        showToast(
+          "error",
+          "Unable to load unit",
+          "The server returned an empty unit profile.",
+        );
         setDetailUnit(null);
         setDetailLoading(false);
         return;
@@ -527,9 +546,32 @@ export function UnitsWorkspace({
             onOpenCreateUnit={() => setCreateUnitOpen(true)}
             unitUsageText={overviewUnitUsageText}
             planLimitReached={overviewPlanLimitReached}
-            units={overviewUnits}
+            gridUnits={overviewUnits}
+            tableUnits={units}
             loading={overviewLoading}
+            tableLoading={tableLoading || loading}
             error={overviewError}
+            tableError={error}
+            query={query}
+            onQueryChange={(value) => {
+              setPage(1);
+              setQuery(value);
+            }}
+            ordering={ordering}
+            onOrderingChange={(value) => {
+              setPage(1);
+              setOrdering(value);
+            }}
+            activePage={pagination.page}
+            paginationItems={paginationItems}
+            totalUnits={pagination.total}
+            hasPreviousPage={pagination.hasPrevious}
+            hasNextPage={pagination.hasNext}
+            onPreviousPage={() => setPage((current) => Math.max(1, current - 1))}
+            onNextPage={() =>
+              setPage((current) => Math.min(pagination.totalPages, current + 1))
+            }
+            onPageChange={setPage}
             metrics={overviewMetrics}
           />
         ) : null}
@@ -595,11 +637,21 @@ export function UnitsWorkspace({
                 if (detailResult.success && detailResult.data) {
                   setDetailUnit(mapUnitDetail(detailResult.data));
                 }
+                showToast(
+                  "success",
+                  "Unit updated",
+                  `${primaryUnit.name} was updated successfully.`,
+                );
               }}
               onAssignedAdminChange={async () => {
                 const unitId = primaryUnit.id;
                 await loadUnits(page, query, ordering);
                 await loadAssignedAdminsForUnit(unitId);
+                showToast(
+                  "success",
+                  "Administrator assignment updated",
+                  `Administrator access for ${primaryUnit.name} was updated.`,
+                );
               }}
               onArchived={async () => {
                 const unitId = primaryUnit.id;
@@ -608,21 +660,21 @@ export function UnitsWorkspace({
                 if (detailResult.success && detailResult.data) {
                   setDetailUnit(mapUnitDetail(detailResult.data));
                 }
+                showToast(
+                  "success",
+                  "Unit archived",
+                  `${primaryUnit.name} was archived successfully.`,
+                );
               }}
             />
           ) : (
-            <div
-              className={
-                darkMode
-                  ? "mt-6 rounded-[22px] border border-slate-800 bg-slate-900 px-6 py-5 text-white"
-                  : "mt-6 rounded-[22px] border border-slate-100 bg-white px-6 py-5"
-              }
-            >
-              <div className="text-base font-semibold">Unit unavailable</div>
-              <div className={darkMode ? "mt-1 text-sm text-slate-300" : "mt-1 text-sm text-slate-500"}>
-                We could not find a live unit record for this page yet.
-              </div>
-            </div>
+            <UnitsEmptyState
+              darkMode={darkMode}
+              title="Unit unavailable"
+              body="We could not find a live unit record for this page. Return to the units list or create a new unit."
+              actionLabel="Create New Unit"
+              onAction={() => setCreateUnitOpen(true)}
+            />
           )
         ) : null}
       </section>
@@ -640,8 +692,21 @@ export function UnitsWorkspace({
         onCreated={async () => {
           setPage(1);
           await loadUnits(1, query, ordering);
+          showToast(
+            "success",
+            "Unit created",
+            "The new unit was created successfully.",
+          );
         }}
       />
+      {toast ? (
+        <DashboardToast
+          tone={toast.tone}
+          title={toast.title}
+          description={toast.description}
+          onClose={() => setToast(null)}
+        />
+      ) : null}
     </>
   );
 }

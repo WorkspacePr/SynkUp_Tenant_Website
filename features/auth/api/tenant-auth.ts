@@ -1,4 +1,5 @@
 import { apiEndpoints, buildApiUrl } from "@/lib/api/endpoints";
+import { formatApiError } from "@/lib/api/errors";
 
 interface TenantLoginUser {
   user_id?: number;
@@ -52,6 +53,9 @@ interface TenantAuthenticationMethods {
 
 interface TenantLoginResponse {
   message?: string;
+  code?: string;
+  reset_required?: boolean;
+  password_expires_in_days?: number;
   requires_otp?: boolean;
   challenge_id?: string;
   requiresOtp?: boolean;
@@ -81,16 +85,7 @@ function extractMessage(
   payload: Record<string, unknown>,
   fallback: string,
 ) {
-  if (typeof payload.message === "string" && payload.message.trim()) {
-    return payload.message;
-  }
-
-  const detail = payload.detail;
-  if (typeof detail === "string" && detail.trim()) {
-    return detail;
-  }
-
-  return fallback;
+  return formatApiError(payload, fallback);
 }
 
 async function readApiPayload(response: Response) {
@@ -324,6 +319,10 @@ export async function loginTenant(payload: {
       Record<string, unknown>;
 
     if (!response.ok) {
+      const passwordChangeRequired =
+        body.code === "password_change_required" ||
+        body.reset_required === true;
+
       return {
         success: false as const,
         message: extractMessage(
@@ -332,6 +331,7 @@ export async function loginTenant(payload: {
             ? "Sign-in service is unavailable right now."
             : "Unable to sign in right now.",
         ),
+        passwordChangeRequired,
       };
     }
 
@@ -346,6 +346,8 @@ export async function loginTenant(payload: {
           : null,
       organizationName: body.organization?.name ?? "",
       organizationSubdomain: body.organization?.subdomain ?? payload.subdomain,
+      userId:
+        typeof body.user?.user_id === "number" ? body.user.user_id : null,
       email: body.user?.email ?? payload.email,
       ...extractLoginRoutingContext(body),
       redirectTarget:
@@ -394,6 +396,8 @@ export async function verifyTenantLoginOtp(payload: {
         typeof body.organization?.organization_id === "number"
           ? body.organization.organization_id
           : null,
+      userId:
+        typeof body.user?.user_id === "number" ? body.user.user_id : null,
       ...extractLoginRoutingContext(body),
       redirectTarget:
         typeof body.redirect_target === "string" ? body.redirect_target : null,

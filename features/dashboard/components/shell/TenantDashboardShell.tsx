@@ -31,8 +31,10 @@ import { ShowcaseNavbar } from "../showcase/shell/ShowcaseNavbar";
 import { ShowcaseSidebar } from "../showcase/shell/ShowcaseSidebar";
 import type { RoleKey, SelectOption } from "../showcase";
 import { UnitsWorkspace } from "../showcase/units/UnitsWorkspace";
+import { AudienceWorkspace } from "../showcase/audience/AudienceWorkspace";
+import { UsersWorkspace } from "../showcase/users/UsersWorkspace";
 
-type SectionKey = "dashboard" | "units";
+type SectionKey = "dashboard" | "units" | "audience" | "users";
 type UnitWorkspaceView = "overview" | "list" | "detail";
 
 type TenantDashboardShellProps = {
@@ -109,10 +111,18 @@ export function TenantDashboardShell({
             ? "/dashboard"
             : item.label === "Units"
               ? "/dashboard/units"
+              : item.label === "Audience"
+                ? "/dashboard/audience"
+              : item.label === "Users"
+                ? "/dashboard/users"
               : item.href,
         active:
           activeSection === "units"
             ? item.label === "Units"
+            : activeSection === "audience"
+              ? item.label === "Audience"
+            : activeSection === "users"
+              ? item.label === "Users"
             : item.label === "Dashboard",
       })),
     [activeSection, config.navMain],
@@ -220,7 +230,7 @@ export function TenantDashboardShell({
                 params.set("unitId", String(nextUnitDashboardId));
               }
 
-              if (pathname.startsWith("/dashboard/units")) {
+              if (pathname.startsWith("/dashboard/units") || pathname.startsWith("/dashboard/audience") || pathname.startsWith("/dashboard/users")) {
                 router.push(`/dashboard?${params.toString()}`);
                 return;
               }
@@ -251,6 +261,10 @@ export function TenantDashboardShell({
                 view={unitWorkspaceView}
                 selectedUnitId={selectedUnitId}
               />
+            ) : activeSection === "audience" ? (
+              <AudienceWorkspace darkMode={darkMode} />
+            ) : activeSection === "users" ? (
+              <UsersWorkspace darkMode={darkMode} />
             ) : role === "super" ? (
               <SuperAdminDashboard
                 darkMode={darkMode}

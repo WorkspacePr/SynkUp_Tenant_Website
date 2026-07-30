@@ -99,11 +99,7 @@ export function SidebarItem({
           {content}
         </Link>
       ) : (
-        <button
-          type="button"
-          onClick={onToggle}
-          className={baseClassName}
-        >
+        <button type="button" onClick={onToggle} className={baseClassName}>
           {content}
         </button>
       )}
@@ -140,6 +136,8 @@ export function CompactSelect({
   className,
   buttonClassName,
   darkMode = false,
+  disabled = false,
+  ariaLabel,
 }: {
   value: string;
   options: SelectOption[];
@@ -147,6 +145,8 @@ export function CompactSelect({
   className?: string;
   buttonClassName?: string;
   darkMode?: boolean;
+  disabled?: boolean;
+  ariaLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -167,6 +167,8 @@ export function CompactSelect({
     <div ref={containerRef} className={cn("relative", className)}>
       <button
         type="button"
+        aria-label={ariaLabel}
+        disabled={disabled}
         onClick={() => setOpen((current) => !current)}
         className={cn(
           "inline-flex min-h-10 w-full items-center justify-between gap-2 rounded-full border px-3 text-sm font-semibold shadow-sm transition",
@@ -174,9 +176,12 @@ export function CompactSelect({
             ? "border-slate-700 bg-slate-900 text-white"
             : "border-slate-200 bg-white text-slate-700",
           buttonClassName,
+          disabled && "cursor-not-allowed opacity-60",
         )}
       >
-        <span className="truncate">{selected?.label ?? value}</span>
+        <span className="truncate capitalize">
+          {(selected?.label ?? value).replaceAll("_", " ")}
+        </span>
         <ChevronDown
           className={cn(
             "h-4 w-4 shrink-0 transition-transform",
@@ -189,7 +194,7 @@ export function CompactSelect({
       {open ? (
         <div
           className={cn(
-            "absolute right-0 z-30 mt-2 min-w-full overflow-hidden rounded-2xl border p-2 shadow-[0_24px_48px_-28px_rgba(15,23,42,0.42)]",
+            "scrollbar-dashboard absolute right-0 z-30 mt-2 max-h-64 min-w-full overflow-x-hidden overflow-y-auto rounded-2xl border p-2 shadow-[0_24px_48px_-28px_rgba(15,23,42,0.42)]",
             darkMode
               ? "border-slate-700 bg-slate-900"
               : "border-slate-200 bg-white",
@@ -267,7 +272,9 @@ export function ThemeSwitch({
             onClick={() => onChange(option.value)}
             className={cn(
               "inline-flex items-center rounded-[18px] transition",
-              collapsed ? "h-11 w-11 justify-center" : "min-h-11 min-w-0 flex-1 justify-center gap-2 px-3.5 py-3",
+              collapsed
+                ? "h-11 w-11 justify-center"
+                : "min-h-11 min-w-0 flex-1 justify-center gap-2 px-3.5 py-3",
               isActive
                 ? "bg-white text-slate-700 shadow-[0_8px_18px_-12px_rgba(15,23,42,0.45)]"
                 : darkShell
@@ -278,7 +285,11 @@ export function ThemeSwitch({
             title={option.label}
           >
             <Icon className="h-5 w-5" />
-            {!collapsed ? <span className="text-sm font-medium leading-tight">{option.label}</span> : null}
+            {!collapsed ? (
+              <span className="text-sm font-medium leading-tight">
+                {option.label}
+              </span>
+            ) : null}
           </button>
         );
       })}
@@ -331,7 +342,8 @@ export function CommandSearchBar({
           return true;
         }
 
-        const haystack = `${group.title} ${item.title} ${item.subtitle} ${item.meta} ${item.keyword}`.toLowerCase();
+        const haystack =
+          `${group.title} ${item.title} ${item.subtitle} ${item.meta} ${item.keyword}`.toLowerCase();
         return haystack.includes(normalizedQuery);
       }),
     }))
@@ -361,8 +373,7 @@ export function CommandSearchBar({
               : "border-slate-200 text-slate-500",
           )}
         >
-          <Command className="h-3 w-3" />
-          K
+          <Command className="h-3 w-3" />K
         </span>
       </button>
 
@@ -472,7 +483,9 @@ export function CommandSearchBar({
                           >
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2">
-                                <span className="font-semibold">{item.title}</span>
+                                <span className="font-semibold">
+                                  {item.title}
+                                </span>
                                 {item.status ? (
                                   <StatusPill
                                     status={item.status}
@@ -483,7 +496,9 @@ export function CommandSearchBar({
                               <div
                                 className={cn(
                                   "mt-1 text-sm",
-                                  darkMode ? "text-slate-300" : "text-slate-600",
+                                  darkMode
+                                    ? "text-slate-300"
+                                    : "text-slate-600",
                                 )}
                               >
                                 {item.subtitle}
@@ -491,7 +506,9 @@ export function CommandSearchBar({
                               <div
                                 className={cn(
                                   "mt-2 text-xs",
-                                  darkMode ? "text-slate-400" : "text-slate-500",
+                                  darkMode
+                                    ? "text-slate-400"
+                                    : "text-slate-500",
                                 )}
                               >
                                 {item.meta}
@@ -523,7 +540,8 @@ export function CommandSearchBar({
                     {commandBar.emptyState}
                   </div>
                   <div className="mt-2 text-sm">
-                    Try a user, session, audience, unit, ticket, dispute, or export.
+                    Try a user, session, audience, unit, ticket, dispute, or
+                    export.
                   </div>
                 </div>
               )}
@@ -532,10 +550,15 @@ export function CommandSearchBar({
             <div
               className={cn(
                 "flex items-center justify-between gap-3 border-t px-5 py-3 text-xs",
-                darkMode ? "border-slate-800 text-slate-400" : "border-slate-100 text-slate-500",
+                darkMode
+                  ? "border-slate-800 text-slate-400"
+                  : "border-slate-100 text-slate-500",
               )}
             >
-              <span>Search across users, sessions, audiences, units, tickets, disputes, and exports</span>
+              <span>
+                Search across users, sessions, audiences, units, tickets,
+                disputes, and exports
+              </span>
               <span className="inline-flex items-center gap-1">
                 <CornerDownLeft className="h-3.5 w-3.5" />
                 Open
@@ -656,7 +679,9 @@ export function SavedViewsCard({
             key={view.title}
             className={cn(
               "rounded-2xl border p-4",
-              darkMode ? "border-slate-800 bg-slate-950/40" : "border-slate-100 bg-slate-50/70",
+              darkMode
+                ? "border-slate-800 bg-slate-950/40"
+                : "border-slate-100 bg-slate-50/70",
             )}
           >
             <div className="flex items-start justify-between gap-3">
@@ -740,7 +765,10 @@ export function GuidedEmptyStatesCard({
         {panel.items.map((item) => (
           <div
             key={item.title}
-            className={cn("rounded-2xl border p-4", toneClass[item.tone ?? "neutral"])}
+            className={cn(
+              "rounded-2xl border p-4",
+              toneClass[item.tone ?? "neutral"],
+            )}
           >
             <div className="font-semibold">{item.title}</div>
             <div
@@ -755,7 +783,9 @@ export function GuidedEmptyStatesCard({
               type="button"
               className={cn(
                 "mt-4 inline-flex rounded-xl px-3 py-2 text-sm font-semibold",
-                darkMode ? "bg-slate-950/70 text-white" : "bg-white text-slate-800",
+                darkMode
+                  ? "bg-slate-950/70 text-white"
+                  : "bg-white text-slate-800",
               )}
             >
               {item.actionLabel}
@@ -832,7 +862,9 @@ function SessionIntegrityGroup({
     <div
       className={cn(
         "rounded-2xl border p-4",
-        darkMode ? "border-slate-800 bg-slate-950/40" : "border-slate-100 bg-slate-50/70",
+        darkMode
+          ? "border-slate-800 bg-slate-950/40"
+          : "border-slate-100 bg-slate-50/70",
       )}
     >
       <div className="text-base font-semibold">{title}</div>
@@ -851,7 +883,9 @@ function SessionIntegrityGroup({
             key={`${title}-${item.title}-${item.status}`}
             className={cn(
               "rounded-2xl border p-4",
-              darkMode ? "border-slate-800 bg-slate-900/80" : "border-slate-200 bg-white",
+              darkMode
+                ? "border-slate-800 bg-slate-900/80"
+                : "border-slate-200 bg-white",
             )}
           >
             <div className="flex items-start justify-between gap-3">
@@ -1156,7 +1190,9 @@ function DisputeSlaRow({
     <div
       className={cn(
         "rounded-2xl border p-4",
-        darkMode ? "border-slate-800 bg-slate-950/50" : "border-slate-100 bg-slate-50/70",
+        darkMode
+          ? "border-slate-800 bg-slate-950/50"
+          : "border-slate-100 bg-slate-50/70",
       )}
     >
       <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
@@ -1359,7 +1395,9 @@ function SystemHealthGroup({
     <div
       className={cn(
         "rounded-2xl border p-4",
-        darkMode ? "border-slate-800 bg-slate-950/40" : "border-slate-100 bg-slate-50/70",
+        darkMode
+          ? "border-slate-800 bg-slate-950/40"
+          : "border-slate-100 bg-slate-50/70",
       )}
     >
       <div className="text-base font-semibold">{title}</div>
@@ -1378,7 +1416,9 @@ function SystemHealthGroup({
             key={`${title}-${item.title}-${item.status}`}
             className={cn(
               "rounded-2xl border p-4",
-              darkMode ? "border-slate-800 bg-slate-900/80" : "border-slate-200 bg-white",
+              darkMode
+                ? "border-slate-800 bg-slate-900/80"
+                : "border-slate-200 bg-white",
             )}
           >
             <div className="flex items-start justify-between gap-3">
@@ -1567,7 +1607,9 @@ function ActionQueueGroup({
     <div
       className={cn(
         "rounded-2xl border p-4",
-        darkMode ? "border-slate-800 bg-slate-950/40" : "border-slate-100 bg-slate-50/70",
+        darkMode
+          ? "border-slate-800 bg-slate-950/40"
+          : "border-slate-100 bg-slate-50/70",
       )}
     >
       <div className="text-base font-semibold">{title}</div>
@@ -1586,7 +1628,9 @@ function ActionQueueGroup({
             key={`${title}-${item.title}-${item.status}`}
             className={cn(
               "rounded-2xl border p-4",
-              darkMode ? "border-slate-800 bg-slate-900/80" : "border-slate-200 bg-white",
+              darkMode
+                ? "border-slate-800 bg-slate-900/80"
+                : "border-slate-200 bg-white",
             )}
           >
             <div className="flex items-start justify-between gap-3">
@@ -1904,7 +1948,8 @@ export function TrendCard({
   const barWidth = 72;
   const gap = 12;
   const leftPadding = 6;
-  const svgWidth = heights.length * barWidth + (heights.length - 1) * gap + leftPadding * 2;
+  const svgWidth =
+    heights.length * barWidth + (heights.length - 1) * gap + leftPadding * 2;
 
   return (
     <Card
@@ -2134,7 +2179,9 @@ export function SessionCard({
                       {session.meta}
                     </div>
                   </div>
-                  <SessionBadge tone={session.badgeTone}>{session.badge}</SessionBadge>
+                  <SessionBadge tone={session.badgeTone}>
+                    {session.badge}
+                  </SessionBadge>
                 </div>
 
                 <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
@@ -2147,7 +2194,12 @@ export function SessionCard({
                     >
                       Time
                     </div>
-                    <div className={cn("mt-1", darkMode ? "text-slate-200" : "text-slate-700")}>
+                    <div
+                      className={cn(
+                        "mt-1",
+                        darkMode ? "text-slate-200" : "text-slate-700",
+                      )}
+                    >
                       {session.time || session.meta}
                     </div>
                   </div>
@@ -2158,9 +2210,16 @@ export function SessionCard({
                         darkMode ? "text-slate-500" : "text-slate-400",
                       )}
                     >
-                      {role === "audience" ? "Present/Total" : "Registered Users"}
+                      {role === "audience"
+                        ? "Present/Total"
+                        : "Registered Users"}
                     </div>
-                    <div className={cn("mt-1", darkMode ? "text-slate-200" : "text-slate-700")}>
+                    <div
+                      className={cn(
+                        "mt-1",
+                        darkMode ? "text-slate-200" : "text-slate-700",
+                      )}
+                    >
                       {session.stat}
                     </div>
                   </div>
@@ -2185,7 +2244,9 @@ export function SessionCard({
                 </div>
               </div>
 
-              <span className="hidden font-medium md:block">{session.title}</span>
+              <span className="hidden font-medium md:block">
+                {session.title}
+              </span>
               <span
                 className={cn(
                   "hidden md:block",
