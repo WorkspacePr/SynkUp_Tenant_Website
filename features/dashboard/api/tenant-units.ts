@@ -1,4 +1,5 @@
 import { getValidOnboardingAccessToken } from "@/lib/auth/tenant-session";
+import { formatApiError } from "@/lib/api/errors";
 
 export type TenantUnitLifecycleStatus =
   | "ACTIVE"
@@ -328,56 +329,7 @@ function normalizeEnvelope(payload: ApiEnvelope): TenantUnitsResponse {
 }
 
 function extractApiErrorMessage(payload: unknown, fallback: string) {
-  if (!isRecord(payload)) {
-    return fallback;
-  }
-
-  const directMessage =
-    typeof payload.message === "string" && payload.message.trim()
-      ? payload.message.trim()
-      : typeof payload.detail === "string" && payload.detail.trim()
-        ? payload.detail.trim()
-        : null;
-
-  if (directMessage) {
-    return directMessage;
-  }
-
-  const errors = payload.errors;
-  if (Array.isArray(errors)) {
-    const firstError = errors.find(
-      (value) => typeof value === "string" && value.trim().length > 0,
-    );
-    if (typeof firstError === "string") {
-      return firstError.trim();
-    }
-  }
-
-  if (isRecord(errors)) {
-    for (const value of Object.values(errors)) {
-      if (Array.isArray(value) && value.length > 0) {
-        const first = value[0];
-        if (typeof first === "string" && first.trim()) {
-          return first.trim();
-        }
-      }
-
-      if (typeof value === "string" && value.trim()) {
-        return value.trim();
-      }
-    }
-  }
-
-  for (const value of Object.values(payload)) {
-    if (Array.isArray(value) && value.length > 0) {
-      const first = value[0];
-      if (typeof first === "string" && first.trim()) {
-        return first.trim();
-      }
-    }
-  }
-
-  return fallback;
+  return formatApiError(payload, fallback);
 }
 
 function normalizeArchiveBlockers(value: unknown): UnitArchiveBlocker[] {
@@ -468,10 +420,7 @@ export async function getTenantUnits(params: {
   if (!response.ok) {
     return {
       success: false as const,
-      message:
-        typeof payload.message === "string" && payload.message.trim()
-          ? payload.message
-          : "Unable to load units right now.",
+      message: extractApiErrorMessage(payload, "Unable to load units right now."),
     };
   }
 
@@ -502,10 +451,7 @@ export async function getTenantUnitsOverview() {
   if (!response.ok) {
     return {
       success: false as const,
-      message:
-        body.message?.trim() ||
-        body.detail?.trim() ||
-        "Unable to load unit overview right now.",
+      message: extractApiErrorMessage(body, "Unable to load unit overview right now."),
     };
   }
 
@@ -544,10 +490,7 @@ export async function createTenantUnit(payload: CreateTenantUnitPayload) {
   if (!response.ok) {
     return {
       success: false as const,
-      message:
-        body.message?.trim() ||
-        body.detail?.trim() ||
-        "Unable to create unit right now.",
+      message: extractApiErrorMessage(body, "Unable to create unit right now."),
     };
   }
 
@@ -573,10 +516,7 @@ export async function getTenantUnitDetail(unitId: number) {
   if (!response.ok) {
     return {
       success: false as const,
-      message:
-        body.message?.trim() ||
-        body.detail?.trim() ||
-        "Unable to load unit details right now.",
+      message: extractApiErrorMessage(body, "Unable to load unit details right now."),
     };
   }
 
@@ -608,10 +548,7 @@ export async function updateTenantUnit(
     return {
       success: false as const,
       status: response.status,
-      message:
-        body.message?.trim() ||
-        body.detail?.trim() ||
-        "Unable to update unit right now.",
+      message: extractApiErrorMessage(body, "Unable to update unit right now."),
     };
   }
 
@@ -644,8 +581,10 @@ export async function getUnitAdminCandidates(organizationId: number) {
   if (!response.ok) {
     return {
       success: false as const,
-      message:
-        body.message?.trim() || "Unable to load unit admin candidates right now.",
+      message: extractApiErrorMessage(
+        body,
+        "Unable to load unit admin candidates right now.",
+      ),
     };
   }
 
@@ -679,8 +618,10 @@ export async function getAssignedUnitAdmins(unitId: number) {
   if (!response.ok) {
     return {
       success: false as const,
-      message:
-        body.message?.trim() || "Unable to load assigned unit admins right now.",
+      message: extractApiErrorMessage(
+        body,
+        "Unable to load assigned unit admins right now.",
+      ),
     };
   }
 
@@ -711,7 +652,7 @@ export async function assignUnitAdmin(unitId: number, payload: { user_id: number
   if (!response.ok) {
     return {
       success: false as const,
-      message: body.message?.trim() || "Unable to assign unit admin right now.",
+      message: extractApiErrorMessage(body, "Unable to assign unit admin right now."),
     };
   }
 
@@ -730,7 +671,7 @@ export async function reassignUnitAdmin(unitId: number, payload: Record<string, 
   if (!response.ok) {
     return {
       success: false as const,
-      message: body.message?.trim() || "Unable to reassign unit admin right now.",
+      message: extractApiErrorMessage(body, "Unable to reassign unit admin right now."),
     };
   }
 
@@ -749,7 +690,7 @@ export async function removeUnitAdmin(unitId: number, payload: { user_id: number
   if (!response.ok) {
     return {
       success: false as const,
-      message: body.message?.trim() || "Unable to remove unit admin right now.",
+      message: extractApiErrorMessage(body, "Unable to remove unit admin right now."),
     };
   }
 

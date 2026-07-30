@@ -136,7 +136,7 @@ export function UnitSetupStep({
         {[
           {
             title: "Computer Science Dept",
-            description: "Great for tracking student labs and lecture attendance.",
+            description: "Great for tracking teams, activities, and attendance.",
             accent: "bg-primary",
             icon: <Box className="h-5 w-5" strokeWidth={1.9} />,
             iconColor: "text-primary",

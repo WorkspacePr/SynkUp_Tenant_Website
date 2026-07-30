@@ -1,3 +1,20 @@
+function isSafeInternalRoute(route: string | null | undefined) {
+  if (!route?.trim()) {
+    return false;
+  }
+
+  const trimmed = route.trim();
+  return (
+    trimmed.startsWith("/") &&
+    !trimmed.startsWith("//") &&
+    !trimmed.includes("://")
+  );
+}
+
+function cleanInternalRoute(route: string | null | undefined) {
+  return isSafeInternalRoute(route) ? route?.trim() ?? null : null;
+}
+
 export function resolvePostLoginRoute(args: {
   dashboardRole?: "super" | "unit" | "audience" | null;
   unitScope?: number[];
@@ -9,15 +26,13 @@ export function resolvePostLoginRoute(args: {
   searchRedirectTo?: string | null;
   resume?: string | null;
 }) {
-  if (args.resume === "onboarding") {
-    return "/onboarding";
-  }
-
+  const redirectTarget = cleanInternalRoute(args.redirectTarget);
+  const searchRedirectTo = cleanInternalRoute(args.searchRedirectTo);
   const onboardingStatus = args.onboardingStatus?.trim().toLowerCase() ?? "";
   const onboardingCurrentStep =
     args.onboardingCurrentStep?.trim().toLowerCase() ?? "";
   const hasDashboardRedirect =
-    args.redirectTarget?.trim().startsWith("/dashboard") ?? false;
+    redirectTarget?.startsWith("/dashboard") ?? false;
   const isOnboardingCompleted =
     onboardingStatus === "completed" ||
     onboardingStatus === "complete" ||
@@ -33,11 +48,8 @@ export function resolvePostLoginRoute(args: {
     return "/onboarding";
   }
 
-  if (
-    args.redirectTarget?.trim() &&
-    !args.redirectTarget.startsWith("/dashboard")
-  ) {
-    return args.redirectTarget;
+  if (redirectTarget && !redirectTarget.startsWith("/dashboard")) {
+    return redirectTarget;
   }
 
   const params = new URLSearchParams();
@@ -59,9 +71,11 @@ export function resolvePostLoginRoute(args: {
     return `/dashboard?${query}`;
   }
 
-  if (args.redirectTarget?.trim()) {
-    return args.redirectTarget;
+  if (redirectTarget) {
+    return redirectTarget;
   }
 
-  return args.searchRedirectTo || "/dashboard";
+  return searchRedirectTo === "/onboarding"
+    ? "/dashboard"
+    : searchRedirectTo || "/dashboard";
 }

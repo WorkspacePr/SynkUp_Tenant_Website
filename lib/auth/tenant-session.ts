@@ -11,6 +11,7 @@ export const AUTHENTICATED_ROUTE_STORAGE_KEY =
   "synkup-authenticated-route";
 
 export interface TenantLoginContext {
+  userId?: number;
   organizationId?: number;
   dashboardRole?: "super" | "unit" | "audience";
   unitScope?: number[];
@@ -28,6 +29,23 @@ let hasRequestedSignInRedirect = false;
 
 function isBrowser() {
   return typeof window !== "undefined";
+}
+
+function cleanInternalRoute(route: string | null | undefined) {
+  if (!route?.trim()) {
+    return null;
+  }
+
+  const trimmed = route.trim();
+  if (
+    !trimmed.startsWith("/") ||
+    trimmed.startsWith("//") ||
+    trimmed.includes("://")
+  ) {
+    return null;
+  }
+
+  return trimmed;
 }
 
 export function readTenantLoginContext(): TenantLoginContext | null {
@@ -180,7 +198,7 @@ export function buildTenantSignInUrl() {
     params.set("resume", "onboarding");
   }
 
-  const redirectTo = context?.redirectTo?.trim();
+  const redirectTo = cleanInternalRoute(context?.redirectTo);
   const shouldIncludeRedirectTo =
     Boolean(redirectTo) &&
     (redirectTo !== "/onboarding" || context?.resumeTarget === "onboarding");
@@ -304,9 +322,11 @@ export function redirectToTenantSignIn(redirectTo?: string) {
 
   hasRequestedSignInRedirect = true;
 
-  if (redirectTo?.trim()) {
+  const safeRedirectTo = cleanInternalRoute(redirectTo);
+
+  if (safeRedirectTo) {
     storeTenantLoginContext({
-      redirectTo,
+      redirectTo: safeRedirectTo,
     });
   }
 

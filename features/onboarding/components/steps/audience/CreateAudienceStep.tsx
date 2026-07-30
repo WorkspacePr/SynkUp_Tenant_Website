@@ -186,7 +186,7 @@ export function CreateAudienceStep({
               <Label htmlFor="audienceGroupName">Audience group name</Label>
               <Input
                 id="audienceGroupName"
-                placeholder="e.g., Year 1 Computer Science Students, Lagos Branch Staff"
+                placeholder="e.g., Product Team, Lagos Branch Staff"
                 error={Boolean(errors.audienceGroupName)}
                 {...register("audienceGroupName")}
               />
@@ -661,7 +661,7 @@ export function CreateAudienceStep({
       ) : null}
 
       {showImportReviewModal ? (
-        <ModalCard title="Import from spreadsheet" subtitle="Upload your list of students, staff, or members to get started quickly." onClose={onCloseImportReviewModal}>
+        <ModalCard title="Import from spreadsheet" subtitle="Upload your list of users, staff, or members to get started quickly." onClose={onCloseImportReviewModal}>
           <div className="space-y-4">
             <div className="overflow-hidden rounded-[0.35rem] border border-border">
               <div className="hidden sm:grid sm:grid-cols-[minmax(0,1.05fr)_minmax(0,1.45fr)_minmax(0,1fr)_minmax(0,1fr)] sm:gap-3 sm:bg-[#fbfcfe] sm:px-4 sm:py-3 sm:text-[0.58rem] sm:font-bold sm:uppercase sm:tracking-[0.14em] sm:text-secondary/60">

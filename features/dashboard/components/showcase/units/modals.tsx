@@ -27,6 +27,7 @@ import {
   updateTenantUnit,
 } from "@/features/dashboard/api/tenant-units";
 import { cn } from "@/utils";
+import { formatNumber } from "@/lib/formatters";
 import { CompactSelect } from "../cards/ShowcaseParts";
 import {
   ADMIN_CANDIDATES,
@@ -76,7 +77,7 @@ type UnitSuccessPreview = {
 };
 
 function formatUnitMetric(value: number | null | undefined) {
-  return new Intl.NumberFormat("en-US").format(value ?? 0);
+  return formatNumber(value ?? 0, "0");
 }
 
 function normalizeSuccessStatus(value: string | null | undefined): UnitSuccessPreview["lifecycleStatus"] {

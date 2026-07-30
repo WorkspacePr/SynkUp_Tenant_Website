@@ -35,23 +35,43 @@ async function readUpstreamPayload(response: Response) {
   };
 }
 
+function copyUpstreamCookies(upstreamResponse: Response, downstreamResponse: NextResponse) {
+  const headers = upstreamResponse.headers as Headers & {
+    getSetCookie?: () => string[];
+  };
+  const setCookieHeaders = headers.getSetCookie?.() ?? [];
+  const fallbackSetCookie = upstreamResponse.headers.get("set-cookie");
+
+  for (const setCookie of setCookieHeaders.length > 0
+    ? setCookieHeaders
+    : fallbackSetCookie
+      ? [fallbackSetCookie]
+      : []) {
+    downstreamResponse.headers.append("set-cookie", setCookie);
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    const cookie = request.headers.get("cookie");
 
     const response = await fetch(buildUpstreamUrl("/api/auth/tenant/login/"), {
       method: "POST",
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",
+        ...(cookie ? { Cookie: cookie } : {}),
       },
       body: JSON.stringify(body),
       cache: "no-store",
     });
 
     const payload = await readUpstreamPayload(response);
+    const nextResponse = NextResponse.json(payload, { status: response.status });
+    copyUpstreamCookies(response, nextResponse);
 
-    return NextResponse.json(payload, { status: response.status });
+    return nextResponse;
   } catch (error) {
     return NextResponse.json(
       {

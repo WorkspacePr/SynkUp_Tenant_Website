@@ -1,20 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import {
   findTenantOrganization,
   loginTenant,
+  requestTenantPasswordReset,
   resendTenantLoginOtp,
   verifyTenantLoginOtp,
 } from "@/features/auth/api/tenant-auth";
 import { AuthExperienceShell } from "@/features/auth/components/shared/AuthExperienceShell";
-import { SIGN_IN_STORY_CONTENT } from "@/features/auth/components/sign-in/config";
-import { CredentialsStage } from "@/features/auth/components/sign-in/CredentialsStage";
-import { OrganizationStage } from "@/features/auth/components/sign-in/OrganizationStage";
-import { VerificationStage } from "@/features/auth/components/sign-in/VerificationStage";
-import type { SignInStage } from "@/features/auth/components/sign-in/types";
+import { SIGN_IN_STORY_CONTENT } from "@/features/auth/components/sign-in/model/story-content";
+import type { SignInStage } from "@/features/auth/components/sign-in/model/types";
+import { CredentialsStage } from "@/features/auth/components/sign-in/stages/CredentialsStage";
+import { OrganizationStage } from "@/features/auth/components/sign-in/stages/OrganizationStage";
+import { PasswordExpiredStage } from "@/features/auth/components/sign-in/stages/PasswordExpiredStage";
+import { VerificationStage } from "@/features/auth/components/sign-in/stages/VerificationStage";
 import { resolvePostLoginRoute } from "@/features/auth/utils/post-login-route";
 import {
   clearTenantLoginContext,
@@ -33,9 +35,29 @@ function normalizeTenantSubdomain(value: string) {
     .replace(/\.synkup\.app$/, "");
 }
 
+function buildRestoredContext(context: ReturnType<typeof readTenantLoginContext>) {
+  if (!context) {
+    return null;
+  }
+
+  return {
+    userId: context.userId,
+    organizationId: context.organizationId,
+    dashboardRole: context.dashboardRole,
+    unitScope: context.unitScope,
+    audienceScope: context.audienceScope,
+    onboardingStatus: context.onboardingStatus,
+    onboardingCurrentStep: context.onboardingCurrentStep,
+    onboardingLaunched: context.onboardingLaunched,
+    subdomain: context.subdomain,
+    email: context.email,
+  };
+}
+
 export function SignInFlow() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const isMountedRef = useRef(false);
   const [stage, setStage] = useState<SignInStage>("organization");
   const [subdomain, setSubdomain] = useState("");
   const [organizationName, setOrganizationName] = useState("your workspace");
@@ -55,11 +77,53 @@ export function SignInFlow() {
   const [isSubmittingCredentials, setIsSubmittingCredentials] = useState(false);
   const [isSubmittingVerification, setIsSubmittingVerification] = useState(false);
   const [isResendingCode, setIsResendingCode] = useState(false);
+  const [passwordExpiryError, setPasswordExpiryError] = useState("");
+  const [passwordExpiryStatus, setPasswordExpiryStatus] = useState("");
+  const [isSendingPasswordReset, setIsSendingPasswordReset] = useState(false);
+  const [passwordResetLinkSent, setPasswordResetLinkSent] = useState(false);
 
   const normalizedSubdomain = normalizeTenantSubdomain(subdomain);
   const normalizedEmail = email.trim().toLowerCase();
 
   useEffect(() => {
+    isMountedRef.current = true;
+
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  const transitionToStage = useCallback((nextStage: SignInStage) => {
+    if (nextStage !== "verify") {
+      setVerifyError("");
+      setStatusMessage("");
+      setVerificationCode("");
+      setChallengeId(null);
+      setCodeTouched(false);
+      setIsSubmittingVerification(false);
+      setIsResendingCode(false);
+    }
+
+    if (nextStage !== "credentials") {
+      setCredentialError("");
+    }
+
+    if (nextStage !== "organization") {
+      setOrgError("");
+    }
+
+    if (nextStage !== "password-expired") {
+      setPasswordExpiryError("");
+      setPasswordExpiryStatus("");
+      setIsSendingPasswordReset(false);
+      setPasswordResetLinkSent(false);
+    }
+
+    setStage(nextStage);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
     const context = readTenantLoginContext();
     const incomingResume = searchParams.get("resume");
     const incomingRedirectTo = searchParams.get("redirectTo");
@@ -72,32 +136,15 @@ export function SignInFlow() {
 
     if (shouldClearStaleOnboardingRedirect && context) {
       clearTenantLoginContext();
-      storeTenantLoginContext({
-        organizationId: context.organizationId,
-        dashboardRole: context.dashboardRole,
-        unitScope: context.unitScope,
-        audienceScope: context.audienceScope,
-        onboardingStatus: context.onboardingStatus,
-        onboardingCurrentStep: context.onboardingCurrentStep,
-        onboardingLaunched: context.onboardingLaunched,
-        subdomain: context.subdomain,
-        email: context.email,
-      });
+      const cleanContext = buildRestoredContext(context);
+      if (cleanContext) {
+        storeTenantLoginContext(cleanContext);
+      }
     }
 
     const resolvedContext =
       shouldClearStaleOnboardingRedirect && context
-        ? {
-            organizationId: context.organizationId,
-            dashboardRole: context.dashboardRole,
-            unitScope: context.unitScope,
-            audienceScope: context.audienceScope,
-            onboardingStatus: context.onboardingStatus,
-            onboardingCurrentStep: context.onboardingCurrentStep,
-            onboardingLaunched: context.onboardingLaunched,
-            subdomain: context.subdomain,
-            email: context.email,
-          }
+        ? buildRestoredContext(context)
         : context;
     const legacySubdomain = searchParams.get("subdomain")?.trim() || "";
     const legacyEmail = searchParams.get("email")?.trim() || "";
@@ -107,6 +154,10 @@ export function SignInFlow() {
     const restoredEmail = resolvedContext?.email?.trim() || legacyEmail;
 
     const timeout = window.setTimeout(() => {
+      if (cancelled) {
+        return;
+      }
+
       setSubdomain(restoredSubdomain);
       setEmail(restoredEmail);
 
@@ -143,10 +194,14 @@ export function SignInFlow() {
         void (async () => {
           const result = await findTenantOrganization(restoredSubdomain);
 
+          if (cancelled) {
+            return;
+          }
+
           setIsFindingOrganization(false);
 
           if (!result.success) {
-            setStage("credentials");
+            transitionToStage("credentials");
             setOrgError("");
             setOrganizationName(`${restoredSubdomain}.synkup.app`);
             setOrganizationLogo("");
@@ -159,16 +214,19 @@ export function SignInFlow() {
           );
           setOrganizationLogo(result.organization.logo ?? "");
           setSupportsEmailPassword(result.authentication.emailPassword);
-          setStage("credentials");
+          transitionToStage("credentials");
         })();
         return;
       }
 
-      setStage("organization");
+      transitionToStage("organization");
     }, 0);
 
-    return () => window.clearTimeout(timeout);
-  }, [searchParams]);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [router, searchParams, transitionToStage]);
 
   async function handleOrganizationSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -183,6 +241,10 @@ export function SignInFlow() {
     setStatusMessage("");
 
     const result = await findTenantOrganization(normalizedSubdomain);
+
+    if (!isMountedRef.current) {
+      return;
+    }
 
     setIsFindingOrganization(false);
 
@@ -204,7 +266,7 @@ export function SignInFlow() {
       return;
     }
 
-    setStage("credentials");
+    transitionToStage("credentials");
   }
 
   async function finalizeLogin(args?: {
@@ -235,6 +297,7 @@ export function SignInFlow() {
 
     if (nextTarget.startsWith("/onboarding") && currentLoginContext) {
       storeTenantLoginContext({
+        userId: currentLoginContext.userId,
         organizationId: currentLoginContext.organizationId,
         dashboardRole: currentLoginContext.dashboardRole,
         unitScope: currentLoginContext.unitScope,
@@ -256,7 +319,7 @@ export function SignInFlow() {
     event.preventDefault();
 
     if (!normalizedSubdomain) {
-      setStage("organization");
+      transitionToStage("organization");
       setOrgError("Enter your organisation subdomain to continue.");
       return;
     }
@@ -269,6 +332,10 @@ export function SignInFlow() {
     setIsSubmittingCredentials(true);
     setCredentialError("");
     setStatusMessage("");
+    setVerifyError("");
+    setVerificationCode("");
+    setChallengeId(null);
+    setCodeTouched(false);
 
     const result = await loginTenant({
       subdomain: normalizedSubdomain,
@@ -277,14 +344,25 @@ export function SignInFlow() {
       remember: rememberMe,
     });
 
+    if (!isMountedRef.current) {
+      return;
+    }
+
     setIsSubmittingCredentials(false);
 
     if (!result.success) {
+      if (result.passwordChangeRequired) {
+        setPassword("");
+        transitionToStage("password-expired");
+        return;
+      }
+
       setCredentialError(result.message);
       return;
     }
 
     storeTenantLoginContext({
+      userId: result.userId ?? undefined,
       organizationId: result.organizationId ?? undefined,
       dashboardRole: result.dashboardRole ?? undefined,
       unitScope: result.unitScope,
@@ -310,7 +388,8 @@ export function SignInFlow() {
       setChallengeId(result.challengeId);
       setCodeTouched(false);
       setVerificationCode("");
-      setStage("verify");
+      setVerifyError("");
+      transitionToStage("verify");
       setStatusMessage(result.message);
       return;
     }
@@ -345,7 +424,7 @@ export function SignInFlow() {
 
     if (!challengeId) {
       setVerifyError("Your login session expired. Please sign in again.");
-      setStage("credentials");
+      transitionToStage("credentials");
       return;
     }
 
@@ -357,6 +436,10 @@ export function SignInFlow() {
       challengeId,
       code: verificationCode,
     });
+
+    if (!isMountedRef.current) {
+      return;
+    }
 
     setIsSubmittingVerification(false);
 
@@ -387,6 +470,7 @@ export function SignInFlow() {
   function syncVerificationCode(nextValue: string) {
     const digits = nextValue.replace(/\D/g, "").slice(0, 6);
     setVerificationCode(digits);
+    setStatusMessage("");
 
     if (codeTouched) {
       setVerifyError(
@@ -413,6 +497,10 @@ export function SignInFlow() {
 
     const result = await resendTenantLoginOtp(challengeId);
 
+    if (!isMountedRef.current) {
+      return;
+    }
+
     setIsResendingCode(false);
     setStatusMessage(result.message);
 
@@ -421,13 +509,42 @@ export function SignInFlow() {
     }
   }
 
+  async function handleSendPasswordReset() {
+    if (!normalizedSubdomain || !normalizedEmail || isSendingPasswordReset) {
+      return;
+    }
+
+    setIsSendingPasswordReset(true);
+    setPasswordExpiryError("");
+    setPasswordExpiryStatus("");
+
+    const result = await requestTenantPasswordReset({
+      subdomain: normalizedSubdomain,
+      email: normalizedEmail,
+    });
+
+    if (!isMountedRef.current) {
+      return;
+    }
+
+    setIsSendingPasswordReset(false);
+
+    if (!result.success) {
+      setPasswordExpiryError(result.message);
+      return;
+    }
+
+    setPasswordResetLinkSent(true);
+    setPasswordExpiryStatus(result.message);
+  }
+
   return (
     <AuthExperienceShell
       stageTitle={SIGN_IN_STORY_CONTENT[stage].title}
       stageDescription={SIGN_IN_STORY_CONTENT[stage].description}
       stageFooter={SIGN_IN_STORY_CONTENT[stage].footer}
-      stepperLabel={stage === "verify" ? "STEP 1 OF 3" : undefined}
-      stepperPhase={stage === "verify" ? 1 : undefined}
+      // stepperLabel={stage === "verify" ? "STEP 1 OF 3" : undefined}
+      // stepperPhase={stage === "verify" ? 1 : undefined}
       compact
     >
       {stage === "organization" ? (
@@ -435,7 +552,11 @@ export function SignInFlow() {
           subdomain={subdomain}
           error={orgError}
           isSubmitting={isFindingOrganization}
-          onSubdomainChange={setSubdomain}
+          onSubdomainChange={(value) => {
+            setSubdomain(value);
+            setOrgError("");
+            setStatusMessage("");
+          }}
           onSubmit={handleOrganizationSubmit}
         />
       ) : null}
@@ -451,10 +572,22 @@ export function SignInFlow() {
           error={credentialError}
           supportsEmailPassword={supportsEmailPassword}
           isSubmitting={isSubmittingCredentials}
-          onEmailChange={setEmail}
-          onPasswordChange={setPassword}
+          onEmailChange={(value) => {
+            setEmail(value);
+            setCredentialError("");
+            setStatusMessage("");
+          }}
+          onPasswordChange={(value) => {
+            setPassword(value);
+            setCredentialError("");
+            setStatusMessage("");
+          }}
           onRememberMeChange={setRememberMe}
-          onBack={() => setStage("organization")}
+          onBack={() => {
+            setCredentialError("");
+            setStatusMessage("");
+            transitionToStage("organization");
+          }}
           onSubmit={handleCredentialSubmit}
         />
       ) : null}
@@ -467,11 +600,28 @@ export function SignInFlow() {
           statusMessage={statusMessage}
           isSubmitting={isSubmittingVerification}
           isResending={isResendingCode}
-          onBack={() => setStage("credentials")}
+          onBack={() => {
+            setVerifyError("");
+            setStatusMessage("");
+            setVerificationCode("");
+            transitionToStage("credentials");
+          }}
           onChange={handleCodeChange}
           onValueChange={handleCodeValueChange}
           onResend={handleResendCode}
           onSubmit={handleVerificationSubmit}
+        />
+      ) : null}
+
+      {stage === "password-expired" ? (
+        <PasswordExpiredStage
+          email={normalizedEmail}
+          error={passwordExpiryError}
+          statusMessage={passwordExpiryStatus}
+          isSubmitting={isSendingPasswordReset}
+          resetLinkSent={passwordResetLinkSent}
+          onBack={() => transitionToStage("credentials")}
+          onSendResetLink={handleSendPasswordReset}
         />
       ) : null}
     </AuthExperienceShell>

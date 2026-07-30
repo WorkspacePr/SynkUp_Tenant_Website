@@ -247,7 +247,7 @@ export function UnitCard({
             </div>
           </div>
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          {/* <div className="mt-5 grid gap-3 sm:grid-cols-2">
             <Link
               href={`/dashboard/units/${unit.id}`}
               className="inline-flex min-h-11 items-center justify-center rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-[0_18px_34px_-24px_rgba(13,148,136,0.9)] transition hover:bg-[#0b857b]"
@@ -261,7 +261,7 @@ export function UnitCard({
             >
               Edit Unit
             </Button>
-          </div>
+          </div> */}
         </div>
       </Card>
 

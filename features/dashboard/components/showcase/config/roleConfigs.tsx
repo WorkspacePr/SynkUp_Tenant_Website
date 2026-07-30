@@ -20,25 +20,19 @@ export const roleConfigs: Record<RoleKey, RoleConfig> = {
       },
       { label: "Units", icon: <Building className="h-4 w-4" /> },
       {
-        label: "Audiences",
+        label: "Audience",
         icon: <UserSquare2 className="h-4 w-4" />,
-        children: [
-          "All Audiences",
-          "By Unit",
-          "Audience Admins",
-          "Archived Audiences",
-        ],
       },
       {
         label: "Users",
         icon: <Users className="h-4 w-4" />,
-        children: [
-          "All Users",
-          "Admin Users",
-          "Invitations",
-          "Bulk Import",
-          "Deactivated Users",
-        ],
+        // children: [
+        //   "All Users",
+        //   "Admin Users",
+        //   "Invitations",
+        //   "Bulk Import",
+        //   "Deactivated Users",
+        // ],
       },
       {
         label: "Attendance",
@@ -218,10 +212,10 @@ export const roleConfigs: Record<RoleKey, RoleConfig> = {
               keyword: "audience csc 411 admin dispute",
             },
             {
-              title: "MBA Students",
+              title: "Leadership Cohort",
               subtitle: "Heritage Campus audience roster",
               meta: "Audiences / All Audiences",
-              keyword: "audience mba students heritage",
+              keyword: "audience leadership cohort heritage",
             },
           ],
         },
@@ -367,7 +361,7 @@ export const roleConfigs: Record<RoleKey, RoleConfig> = {
       },
       {
         title: "Business Analytics Workshop",
-        meta: "MBA Students   Heritage Campus",
+        meta: "Leadership Cohort   Heritage Campus",
         time: "10:30 AM",
         stat: "68/80 present",
         badge: "LIVE",
@@ -485,7 +479,7 @@ export const roleConfigs: Record<RoleKey, RoleConfig> = {
         {
           title: "4 failed rows require edits",
           subtitle:
-            "Matric number and unit mapping conflicts were detected during import.",
+            "User ID and unit mapping conflicts were detected during import.",
           meta: "Download the failed-row report, fix the source CSV, and retry",
           status: "Fix",
           statusTone: "danger",
@@ -1111,13 +1105,13 @@ export const roleConfigs: Record<RoleKey, RoleConfig> = {
       {
         label: "Users",
         icon: <Users className="h-4 w-4" />,
-        children: [
-          "All Users",
-          "Add User",
-          "Invitations",
-          "Bulk Import",
-          "Deactivated Users",
-        ],
+        // children: [
+        //   "All Users",
+        //   "Add User",
+        //   "Invitations",
+        //   "Bulk Import",
+        //   "Deactivated Users",
+        // ],
       },
       { label: "Sessions", icon: <CalendarClock className="h-4 w-4" /> },
       { label: "Attendance", icon: <CheckCircle2 className="h-4 w-4" /> },
@@ -1522,7 +1516,7 @@ export const roleConfigs: Record<RoleKey, RoleConfig> = {
         {
           title: "3 duplicate candidates",
           subtitle:
-            "Matched by matric number, phone, and similar names within Legacy Campus.",
+            "Matched by user ID, phone, and similar names within Legacy Campus.",
           meta: "One candidate can be auto-merged safely",
           status: "Review",
           statusTone: "warning",
@@ -2285,7 +2279,7 @@ export const roleConfigs: Record<RoleKey, RoleConfig> = {
       title: "CSC 411: Introduction to C",
       timer: "00:32:55",
       progress: 80,
-      summary: "84/105 Students Checked In",
+      summary: "84/105 Users Checked In",
       primaryAction: "View Session Stats",
       secondaryAction: "End Session",
     },

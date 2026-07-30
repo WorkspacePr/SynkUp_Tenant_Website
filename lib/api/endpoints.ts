@@ -14,6 +14,30 @@ export const apiEndpoints = {
   verifyRegistrationCode: "/api/onboarding/registration/verify-code/",
   createRegistrationOrganization: "/api/onboarding/registration/create-organization/",
   refreshToken: "/api/auth/token/refresh/",
+  tenantUsers: "/api/users/",
+  tenantUserDetail: (userId: number) => `/api/users/${userId}/`,
+  tenantUserActivate: (userId: number) => `/api/users/${userId}/activate/`,
+  tenantUserDeactivate: (userId: number) => `/api/users/${userId}/deactivate/`,
+  tenantUserInvitationStatus: (userId: number) =>
+    `/api/users/${userId}/invitation-status/`,
+  tenantUserSendInvitation: (userId: number) =>
+    `/api/users/${userId}/send-invitation/`,
+  tenantUserResendInvitation: (userId: number) =>
+    `/api/users/${userId}/resend-invitation/`,
+  tenantUserRevokeInvitation: (userId: number) =>
+    `/api/users/${userId}/revoke-invitation/`,
+  tenantUserTransfer: (userId: number) => `/api/users/${userId}/transfer/`,
+  tenantUserAuditLogs: (userId: number) => `/api/users/${userId}/audit-logs/`,
+  tenantUserDuplicateCheck: "/api/users/duplicate-check/",
+  tenantUsersImportPreview: "/api/users/import/preview/",
+  tenantUsersImportConfirm: "/api/users/import/confirm/",
+  tenantUsersOverview: "/api/users/overview/",
+  tenantUsersBulkSendInvitations: "/api/users/bulk/send-invitations/",
+  tenantUsersBulkResendInvitations: "/api/users/bulk/resend-invitations/",
+  tenantUsersBulkDeactivate: "/api/users/bulk/deactivate/",
+  tenantUsersBulkAssignAudience: "/api/users/bulk/assign-audience/",
+  tenantUsersBulkExport: "/api/users/bulk/export/",
+  tenantUserAccountSetup: (token: string) => `/api/users/account-setup/${token}/`,
   organizationOnboardingStatus: (organizationId: number) =>
     `/api/organizations/${organizationId}/onboarding/`,
   organizationOnboardingProfile: (organizationId: number) =>

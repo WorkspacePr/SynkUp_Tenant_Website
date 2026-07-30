@@ -3,6 +3,7 @@
 import Link from "next/link";
 
 import { AuthShell } from "@/components/layout/AuthShell";
+import { BrandLogo } from "@/components/ui/BrandLogo";
 import { Stepper } from "@/components/ui/Stepper";
 import { cn } from "@/utils";
 
@@ -41,7 +42,13 @@ export function AuthExperienceShell({
 
         <div className="flex flex-col bg-[#fbfbff] px-6 py-6 sm:px-10 sm:py-8 lg:px-14 lg:py-10">
           <header className="flex items-center justify-between gap-4">
-            <div>
+            <div className="flex items-center gap-4">
+              <BrandLogo
+                priority
+                className="lg:hidden"
+                imageClassName="h-9 w-9"
+                labelClassName="hidden text-primary sm:inline"
+              />
               {stepperLabel && stepperPhase ? (
                 <Stepper label={stepperLabel} phase={stepperPhase} />
               ) : null}
