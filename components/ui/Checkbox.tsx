@@ -22,7 +22,7 @@ export function Checkbox({
         className,
       )}
     >
-      <span className="relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-border bg-background">
+      <span className="relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-border bg-background transition has-[:checked]:border-primary has-[:checked]:bg-primary">
         <input
           id={id}
           type="checkbox"
@@ -30,7 +30,7 @@ export function Checkbox({
           {...props}
         />
         <svg
-          className="h-3.5 w-3.5 scale-0 text-primary transition peer-checked:scale-100"
+          className="h-3.5 w-3.5 scale-0 text-primary-foreground transition peer-checked:scale-100"
           viewBox="0 0 16 16"
           fill="none"
           aria-hidden="true"
