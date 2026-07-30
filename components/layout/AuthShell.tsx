@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 
 import { Card } from "@/components/ui/Card";
+import { BrandLogo } from "@/components/ui/BrandLogo";
 import { Icon } from "@/components/ui/Icons";
 import { cn } from "@/utils";
 import type { HeroCardDefinition } from "@/types/onboarding";
@@ -26,7 +27,12 @@ export function AuthShell({
     <aside className="relative hidden overflow-hidden bg-[linear-gradient(160deg,#138e85_0%,#149f93_45%,#164458_100%)] px-8 py-8 text-white lg:block lg:px-12 lg:py-10">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.18),transparent_22%),radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.08),transparent_24%)]" />
       <div className="relative flex h-full flex-col">
-        <div className="text-2xl font-extrabold tracking-[-0.04em]">SynkUp</div>
+        <BrandLogo
+          priority
+          imageClassName="h-11 w-11"
+          labelClassName="text-2xl text-white"
+          imageContainerClassName={"bg-white p-2.5 rounded-lg"}
+        />
         <div className="mt-16 max-w-full space-y-6 lg:mt-26">
           <h1 className="max-w-3xl text-4xl font-bold tracking-[-0.06em] text-balance lg:text-[3.6rem] lg:leading-[1.06]">
             {title}

@@ -1,4 +1,5 @@
-import { BellIcon, CircleHelpIcon, SynkUpMarkIcon } from "@/components/ui/OnboardingIcons";
+import { BrandLogo } from "@/components/ui/BrandLogo";
+import { BellIcon, CircleHelpIcon } from "@/components/ui/OnboardingIcons";
 
 interface OnboardingShellProps {
   children: React.ReactNode;
@@ -9,10 +10,11 @@ export function OnboardingShell({ children }: OnboardingShellProps) {
     <main className="min-h-screen bg-background">
       <div className="flex min-h-screen w-full flex-col">
         <header className="flex items-center justify-between border-b border-border/70 bg-card px-6 py-4">
-          <div className="flex items-center gap-2 text-primary">
-            <SynkUpMarkIcon className="h-6 w-6" />
-            <span className="text-lg font-extrabold tracking-[-0.04em]">SynkUp</span>
-          </div>
+          <BrandLogo
+            priority
+            imageClassName="h-9 w-9"
+            labelClassName="text-primary"
+          />
           <div className="hidden items-center gap-8 text-sm text-secondary/85 sm:flex">
             <button type="button" className="transition hover:text-secondary">
               Support
@@ -37,10 +39,10 @@ export function OnboardingShell({ children }: OnboardingShellProps) {
           {children}
         </div>
         <footer className="flex items-center justify-between border-t border-border/70 bg-card px-6 py-4 text-sm text-secondary/75">
-          <div className="flex items-center gap-2 text-primary">
-            <SynkUpMarkIcon className="h-5 w-5" />
-            <span className="font-bold">SynkUp</span>
-          </div>
+          <BrandLogo
+            imageClassName="h-7 w-7"
+            labelClassName="text-base text-primary"
+          />
           <div>&copy; 2026 SynkUp. Admin Panel v1.0</div>
           <div className="hidden gap-5 sm:flex">
             <span>Privacy Policy</span>
