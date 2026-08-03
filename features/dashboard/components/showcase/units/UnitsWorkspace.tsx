@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   DashboardToast,
   type DashboardToastTone,
@@ -20,6 +21,7 @@ import {
 import { getReferenceData } from "@/features/onboarding/api/tenant-onboarding";
 import { readTenantLoginContext } from "@/lib/auth/tenant-session";
 import { formatDate, formatNumber } from "@/lib/formatters";
+import { cn } from "@/utils";
 import {
   AUDIENCE_LOOKUP,
   OVERVIEW_METRICS,
@@ -249,6 +251,7 @@ export function UnitsWorkspace({
   view,
   selectedUnitId,
 }: UnitsWorkspaceProps) {
+  const router = useRouter();
   const [createUnitOpen, setCreateUnitOpen] = useState(false);
   const [units, setUnits] = useState<UnitSummary[]>([]);
   const [query, setQuery] = useState("");
@@ -362,7 +365,7 @@ export function UnitsWorkspace({
   };
 
   useEffect(() => {
-    if (view !== "overview") {
+    if (view !== "overview" && view !== "detail") {
       return;
     }
 
@@ -540,7 +543,7 @@ export function UnitsWorkspace({
   return (
     <>
       <section className="pb-10">
-        {view === "overview" ? (
+        {view === "overview" || view === "detail" ? (
           <UnitsOverview
             darkMode={darkMode}
             onOpenCreateUnit={() => setCreateUnitOpen(true)}
@@ -572,6 +575,9 @@ export function UnitsWorkspace({
               setPage((current) => Math.min(pagination.totalPages, current + 1))
             }
             onPageChange={setPage}
+            onOpenUnit={(unit) =>
+              router.push(`/dashboard/units/${unit.id}`)
+            }
             metrics={overviewMetrics}
           />
         ) : null}
@@ -612,7 +618,22 @@ export function UnitsWorkspace({
 
         {view === "detail" ? (
           detailLoading && !primaryUnit ? (
-            <UnitDetailSkeleton darkMode={darkMode} />
+            <div
+              className="fixed inset-0 z-50 bg-slate-950/45 backdrop-blur-sm"
+              onMouseDown={() => router.push("/dashboard/units")}
+            >
+              <aside
+                className={cn(
+                  "scrollbar-dashboard ml-auto h-full w-full max-w-[760px] overflow-y-auto border-l p-5 shadow-2xl sm:p-6",
+                  darkMode
+                    ? "border-slate-700 bg-slate-900 text-white"
+                    : "border-slate-200 bg-white text-slate-950",
+                )}
+                onMouseDown={(event) => event.stopPropagation()}
+              >
+                <UnitDetailSkeleton darkMode={darkMode} />
+              </aside>
+            </div>
           ) : primaryUnit ? (
             <UnitDetail
               darkMode={darkMode}
@@ -630,6 +651,7 @@ export function UnitsWorkspace({
               countryOptions={countryOptions}
               adminOptions={adminOptions}
               adminOptionsNote={adminOptionsNote}
+              onClose={() => router.push("/dashboard/units")}
               onUnitUpdated={async () => {
                 const unitId = primaryUnit.id;
                 await loadUnits(page, query, ordering);

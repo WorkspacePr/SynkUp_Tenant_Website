@@ -1286,24 +1286,31 @@ export function AudienceWorkspace({ darkMode }: { darkMode: boolean }) {
             {filtered.map((a) => (
               <Card
                 key={a.id}
+                role="button"
+                tabIndex={0}
+                aria-label={`View ${a.name} details`}
+                onClick={() => setSelected(a)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setSelected(a);
+                  }
+                }}
                 className={cn(
-                  "rounded-[22px] border p-5",
+                  "cursor-pointer rounded-[22px] border p-5 transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
                   calculateAudienceHealth(a).state === "warning"
-                    ? "border-yellow-400 bg-yellow-50"
+                    ? "border-yellow-400 bg-yellow-50 hover:-translate-y-0.5 hover:shadow-lg"
                     : calculateAudienceHealth(a).state === "critical"
-                      ? "border-red-400 bg-red-50"
+                      ? "border-red-400 bg-red-50 hover:-translate-y-0.5 hover:shadow-lg"
                       : darkMode
-                        ? "border-slate-700 bg-slate-800"
-                        : "border-slate-200 bg-white",
+                        ? "border-slate-700 bg-slate-800 hover:border-primary/40 hover:bg-slate-700/80"
+                        : "border-slate-200 bg-white hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-lg",
                 )}
               >
                 <div className="flex items-start justify-between">
-                  <button
-                    onClick={() => setSelected(a)}
-                    className="text-left text-lg font-bold hover:text-primary"
-                  >
+                  <div className="text-left text-lg font-bold">
                     {a.name}
-                  </button>
+                  </div>
                   <StatusPill status={a.status} />
                 </div>
                 <div className="mt-2 flex items-center gap-2 text-xs font-semibold text-slate-500">

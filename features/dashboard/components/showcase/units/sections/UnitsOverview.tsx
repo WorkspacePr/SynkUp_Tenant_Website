@@ -42,6 +42,7 @@ export function UnitsOverview({
   onPreviousPage,
   onNextPage,
   onPageChange,
+  onOpenUnit,
   metrics,
 }: {
   darkMode: boolean;
@@ -66,6 +67,7 @@ export function UnitsOverview({
   onPreviousPage?: () => void;
   onNextPage?: () => void;
   onPageChange?: (page: number) => void;
+  onOpenUnit?: (unit: UnitSummary) => void;
   metrics?: OverviewMetric[];
 }) {
   const [view, setView] = useState<"table" | "grid">("grid");
@@ -236,7 +238,12 @@ export function UnitsOverview({
                 ) : (
                   <div className="grid gap-5 p-5 xl:grid-cols-2">
                     {gridUnitsByPage.map((unit) => (
-                      <UnitCard key={unit.id} darkMode={darkMode} unit={unit} />
+                      <UnitCard
+                        key={unit.id}
+                        darkMode={darkMode}
+                        unit={unit}
+                        onOpen={onOpenUnit}
+                      />
                     ))}
                   </div>
                 )}

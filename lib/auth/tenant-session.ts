@@ -9,6 +9,10 @@ export const TENANT_LOGIN_CONTEXT_STORAGE_KEY =
   "synkup-tenant-login-context";
 export const AUTHENTICATED_ROUTE_STORAGE_KEY =
   "synkup-authenticated-route";
+const SESSION_STARTED_AT_STORAGE_KEY = "synkup-session-started-at";
+const SESSION_LAST_ACTIVE_AT_STORAGE_KEY = "synkup-session-last-active-at";
+const SESSION_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
+const SESSION_ABSOLUTE_TIMEOUT_MS = 8 * 60 * 60 * 1000;
 
 export interface TenantLoginContext {
   userId?: number;
@@ -26,9 +30,83 @@ export interface TenantLoginContext {
 }
 
 let hasRequestedSignInRedirect = false;
+let refreshAccessTokenRequest: Promise<string | null> | null = null;
 
 function isBrowser() {
   return typeof window !== "undefined";
+}
+
+function readPersistentSessionValue(key: string) {
+  if (!isBrowser()) return null;
+
+  const persistedValue = window.localStorage.getItem(key);
+  if (persistedValue !== null) {
+    return persistedValue;
+  }
+
+  // Migrate sessions created before authentication became persistent.
+  const legacyValue = window.sessionStorage.getItem(key);
+  if (legacyValue !== null) {
+    window.localStorage.setItem(key, legacyValue);
+    window.sessionStorage.removeItem(key);
+  }
+
+  return legacyValue;
+}
+
+function storePersistentSessionValue(key: string, value: string) {
+  if (!isBrowser()) return;
+
+  window.localStorage.setItem(key, value);
+  window.sessionStorage.removeItem(key);
+}
+
+function removePersistentSessionValue(key: string) {
+  if (!isBrowser()) return;
+
+  window.localStorage.removeItem(key);
+  window.sessionStorage.removeItem(key);
+}
+
+function readSessionTimestamp(key: string) {
+  const rawValue = readPersistentSessionValue(key);
+  if (!rawValue) return null;
+
+  const timestamp = Number(rawValue);
+  return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : null;
+}
+
+function startPersistentSession() {
+  const now = Date.now().toString();
+  storePersistentSessionValue(SESSION_STARTED_AT_STORAGE_KEY, now);
+  storePersistentSessionValue(SESSION_LAST_ACTIVE_AT_STORAGE_KEY, now);
+}
+
+function touchPersistentSession() {
+  storePersistentSessionValue(
+    SESSION_LAST_ACTIVE_AT_STORAGE_KEY,
+    Date.now().toString(),
+  );
+}
+
+function isPersistentSessionExpired() {
+  const now = Date.now();
+  const startedAt = readSessionTimestamp(SESSION_STARTED_AT_STORAGE_KEY);
+  const lastActiveAt = readSessionTimestamp(
+    SESSION_LAST_ACTIVE_AT_STORAGE_KEY,
+  );
+
+  // Give sessions created by an earlier release a bounded lifetime from the
+  // first time they are read after this upgrade.
+  if (!startedAt || !lastActiveAt) {
+    startPersistentSession();
+    return false;
+  }
+
+  return (
+    now - lastActiveAt >= SESSION_IDLE_TIMEOUT_MS ||
+    now - startedAt >= SESSION_ABSOLUTE_TIMEOUT_MS
+  );
 }
 
 function cleanInternalRoute(route: string | null | undefined) {
@@ -80,7 +158,7 @@ export function clearTenantLoginContext() {
 export function readAuthenticatedRoute() {
   if (!isBrowser()) return null;
 
-  const raw = window.sessionStorage.getItem(AUTHENTICATED_ROUTE_STORAGE_KEY);
+  const raw = readPersistentSessionValue(AUTHENTICATED_ROUTE_STORAGE_KEY);
   if (!raw?.trim()) {
     return null;
   }
@@ -92,15 +170,17 @@ export function storeAuthenticatedRoute(route: string) {
   if (!isBrowser()) return;
   if (!route.trim()) return;
 
-  window.sessionStorage.setItem(AUTHENTICATED_ROUTE_STORAGE_KEY, route);
+  storePersistentSessionValue(AUTHENTICATED_ROUTE_STORAGE_KEY, route);
 }
 
 export function clearStoredOnboardingTokens() {
   if (!isBrowser()) return;
 
-  window.sessionStorage.removeItem(ONBOARDING_ACCESS_TOKEN_STORAGE_KEY);
-  window.sessionStorage.removeItem(ONBOARDING_REFRESH_TOKEN_STORAGE_KEY);
-  window.sessionStorage.removeItem(AUTHENTICATED_ROUTE_STORAGE_KEY);
+  removePersistentSessionValue(ONBOARDING_ACCESS_TOKEN_STORAGE_KEY);
+  removePersistentSessionValue(ONBOARDING_REFRESH_TOKEN_STORAGE_KEY);
+  removePersistentSessionValue(AUTHENTICATED_ROUTE_STORAGE_KEY);
+  removePersistentSessionValue(SESSION_STARTED_AT_STORAGE_KEY);
+  removePersistentSessionValue(SESSION_LAST_ACTIVE_AT_STORAGE_KEY);
 }
 
 function preserveTenantIdentityHints() {
@@ -131,22 +211,30 @@ export function storeOnboardingTokens(tokens: {
 }) {
   if (!isBrowser()) return;
 
+  const isStartingSession = Boolean(
+    tokens.access?.trim() || tokens.refresh?.trim(),
+  );
+
   if (tokens.access?.trim()) {
-    window.sessionStorage.setItem(
+    storePersistentSessionValue(
       ONBOARDING_ACCESS_TOKEN_STORAGE_KEY,
       tokens.access,
     );
   } else {
-    window.sessionStorage.removeItem(ONBOARDING_ACCESS_TOKEN_STORAGE_KEY);
+    removePersistentSessionValue(ONBOARDING_ACCESS_TOKEN_STORAGE_KEY);
   }
 
   if (tokens.refresh?.trim()) {
-    window.sessionStorage.setItem(
+    storePersistentSessionValue(
       ONBOARDING_REFRESH_TOKEN_STORAGE_KEY,
       tokens.refresh,
     );
   } else {
-    window.sessionStorage.removeItem(ONBOARDING_REFRESH_TOKEN_STORAGE_KEY);
+    removePersistentSessionValue(ONBOARDING_REFRESH_TOKEN_STORAGE_KEY);
+  }
+
+  if (isStartingSession) {
+    startPersistentSession();
   }
 }
 
@@ -216,7 +304,7 @@ async function refreshOnboardingAccessToken() {
     return null;
   }
 
-  const refreshToken = window.sessionStorage.getItem(
+  const refreshToken = readPersistentSessionValue(
     ONBOARDING_REFRESH_TOKEN_STORAGE_KEY,
   );
 
@@ -239,17 +327,19 @@ async function refreshOnboardingAccessToken() {
       typeof body.access === "string" && body.access.trim() ? body.access : null;
 
     if (!response.ok || !nextAccessToken) {
-      clearStoredOnboardingTokens();
+      if (response.status === 401 || response.status === 403) {
+        clearStoredOnboardingTokens();
+      }
       return null;
     }
 
-    window.sessionStorage.setItem(
+    storePersistentSessionValue(
       ONBOARDING_ACCESS_TOKEN_STORAGE_KEY,
       nextAccessToken,
     );
 
     if (typeof body.refresh === "string" && body.refresh.trim()) {
-      window.sessionStorage.setItem(
+      storePersistentSessionValue(
         ONBOARDING_REFRESH_TOKEN_STORAGE_KEY,
         body.refresh,
       );
@@ -257,9 +347,18 @@ async function refreshOnboardingAccessToken() {
 
     return nextAccessToken;
   } catch {
-    clearStoredOnboardingTokens();
     return null;
   }
+}
+
+function requestAccessTokenRefresh() {
+  if (!refreshAccessTokenRequest) {
+    refreshAccessTokenRequest = refreshOnboardingAccessToken().finally(() => {
+      refreshAccessTokenRequest = null;
+    });
+  }
+
+  return refreshAccessTokenRequest;
 }
 
 export async function getValidOnboardingAccessToken() {
@@ -267,19 +366,42 @@ export async function getValidOnboardingAccessToken() {
     return null;
   }
 
-  const accessToken = window.sessionStorage.getItem(
+  if (isPersistentSessionExpired()) {
+    clearStoredOnboardingTokens();
+    return null;
+  }
+
+  const accessToken = readPersistentSessionValue(
     ONBOARDING_ACCESS_TOKEN_STORAGE_KEY,
   );
 
   if (!accessToken) {
-    return refreshOnboardingAccessToken();
+    const refreshedAccessToken = await requestAccessTokenRefresh();
+    if (refreshedAccessToken) {
+      touchPersistentSession();
+    }
+    return refreshedAccessToken;
   }
 
   if (!isTokenExpired(accessToken)) {
+    touchPersistentSession();
     return accessToken;
   }
 
-  return refreshOnboardingAccessToken();
+  const refreshedAccessToken = await requestAccessTokenRefresh();
+  if (refreshedAccessToken) {
+    touchPersistentSession();
+    return refreshedAccessToken;
+  }
+
+  // Keep the current page mounted during a temporary refresh outage. An
+  // authentication rejection removes the refresh token and still signs out.
+  if (readPersistentSessionValue(ONBOARDING_REFRESH_TOKEN_STORAGE_KEY)) {
+    touchPersistentSession();
+    return accessToken;
+  }
+
+  return null;
 }
 
 export async function logoutTenantSession() {
@@ -287,10 +409,10 @@ export async function logoutTenantSession() {
     return;
   }
 
-  const accessToken = window.sessionStorage.getItem(
+  const accessToken = readPersistentSessionValue(
     ONBOARDING_ACCESS_TOKEN_STORAGE_KEY,
   );
-  const refreshToken = window.sessionStorage.getItem(
+  const refreshToken = readPersistentSessionValue(
     ONBOARDING_REFRESH_TOKEN_STORAGE_KEY,
   );
 
