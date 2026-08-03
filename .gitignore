@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/.tmp_synkup_mvp
+SynkUp_First_MVP_One_Month_Roadmap.docx

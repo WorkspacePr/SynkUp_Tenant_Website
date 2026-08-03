@@ -2,10 +2,8 @@
 
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import Link from "next/link";
 import {
   Activity,
-  ArrowLeft,
   BellRing,
   Building2,
   CalendarDays,
@@ -18,6 +16,7 @@ import {
   Trash2,
   UserCog,
   Users,
+  X,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/Button";
@@ -78,6 +77,7 @@ export function UnitDetail({
   onUnitUpdated,
   onAssignedAdminChange,
   onArchived,
+  onClose,
 }: {
   darkMode: boolean;
   unit: UnitSummary;
@@ -97,6 +97,7 @@ export function UnitDetail({
   onUnitUpdated?: () => Promise<void> | void;
   onAssignedAdminChange?: () => Promise<void> | void;
   onArchived?: () => Promise<void> | void;
+  onClose: () => void;
 }) {
   const [alertsOpen, setAlertsOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
@@ -294,26 +295,106 @@ export function UnitDetail({
   ];
 
   if (loading) {
-    return <UnitDetailSkeleton darkMode={darkMode} />;
+    return (
+      <div
+        className="fixed inset-0 z-50 bg-slate-950/45 backdrop-blur-sm"
+        onMouseDown={onClose}
+      >
+        <aside
+          className={cn(
+            "scrollbar-dashboard ml-auto h-full w-full max-w-[760px] overflow-y-auto border-l shadow-2xl",
+            darkMode
+              ? "border-slate-700 bg-slate-900 text-white"
+              : "border-slate-200 bg-white text-slate-950",
+          )}
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <div
+            className={cn(
+              "sticky top-0 z-20 flex items-center justify-between border-b px-5 py-4 backdrop-blur-xl sm:px-6",
+              darkMode
+                ? "border-slate-800 bg-slate-900/95"
+                : "border-slate-200 bg-white/95",
+            )}
+          >
+            <div>
+              <div className="text-xs font-bold uppercase tracking-[0.14em] text-primary">
+                Unit profile
+              </div>
+              <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                Loading unit details...
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close unit details"
+              className={cn(
+                "inline-flex h-10 w-10 items-center justify-center rounded-xl transition",
+                darkMode
+                  ? "bg-slate-800 text-white hover:bg-slate-700"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+              )}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="p-5 sm:p-6">
+            <UnitDetailSkeleton darkMode={darkMode} />
+          </div>
+        </aside>
+      </div>
+    );
   }
 
   return (
     <>
-      <div>
-        <Link
-          href="/dashboard/units"
+      <div
+        className="fixed inset-0 z-50 bg-slate-950/45 backdrop-blur-sm"
+        onMouseDown={onClose}
+      >
+        <aside
           className={cn(
-            "inline-flex items-center gap-2 rounded-xl px-1 py-2 text-sm font-semibold transition",
+            "scrollbar-dashboard ml-auto h-full w-full max-w-[760px] overflow-y-auto border-l shadow-2xl",
             darkMode
-              ? "text-slate-300 hover:text-white"
-              : "text-slate-500 hover:text-slate-900",
+              ? "border-slate-700 bg-slate-900 text-white"
+              : "border-slate-200 bg-white text-slate-950",
           )}
+          onMouseDown={(event) => event.stopPropagation()}
         >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Units
-        </Link>
+          <div
+            className={cn(
+              "sticky top-0 z-30 flex items-center justify-between border-b px-5 py-4 backdrop-blur-xl sm:px-6",
+              darkMode
+                ? "border-slate-800 bg-slate-900/95"
+                : "border-slate-200 bg-white/95",
+            )}
+          >
+            <div>
+              <div className="text-xs font-bold uppercase tracking-[0.14em] text-primary">
+                Unit profile
+              </div>
+              <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                Details, people, audiences, and unit health
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close unit details"
+              className={cn(
+                "inline-flex h-10 w-10 items-center justify-center rounded-xl transition",
+                darkMode
+                  ? "bg-slate-800 text-white hover:bg-slate-700"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+              )}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
 
-        <div className="flex flex-row items-center justify-between pt-4">
+          <div className="px-5 pb-8 pt-5 sm:px-6">
+        <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
           <div className="flex flex-wrap items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.08em]">
             <h2
               className={cn(
@@ -431,7 +512,7 @@ export function UnitDetail({
           />
         ) : null}
 
-        <div className="mt-5 grid gap-5 xl:grid-cols-[1.05fr_2fr]">
+        <div className="mt-5 grid gap-5">
           <Card
             className="rounded-[22px] border-none p-6 text-black"
             style={{ backgroundColor: "#28b463" }}
@@ -442,7 +523,7 @@ export function UnitDetail({
               </div>
               <Monitor className="h-10 w-10" />
             </div>
-            <div className="mt-16 text-[3rem] font-semibold leading-none text-white">
+            <div className="mt-10 text-[2.5rem] font-semibold leading-none text-white">
               {unit.statusLabel}
             </div>
             <div className="mt-3 text-3xl text-white">{unit.statusMessage}</div>
@@ -529,6 +610,8 @@ export function UnitDetail({
           audienceSegment={audienceSegment}
           onAudienceSegmentChange={setAudienceSegment}
         />
+          </div>
+        </aside>
       </div>
 
       <UnitAlertsDrawer

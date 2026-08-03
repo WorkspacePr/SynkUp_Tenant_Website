@@ -20,8 +20,7 @@ import type {
 import type { SelectOption } from "@/components/ui/Select";
 import {
   clearStoredOnboardingTokens as clearStoredTenantSessionTokens,
-  ONBOARDING_ACCESS_TOKEN_STORAGE_KEY,
-  ONBOARDING_REFRESH_TOKEN_STORAGE_KEY,
+  getValidOnboardingAccessToken,
   redirectToTenantSignIn,
 } from "@/lib/auth/tenant-session";
 import { apiEndpoints, buildApiUrl } from "@/lib/api/endpoints";
@@ -328,20 +327,6 @@ function buildSubdomainAvailabilityUrl(subdomain: string) {
   return url.toString();
 }
 
-function isTokenExpired(token: string) {
-  try {
-    const [, payload] = token.split(".");
-    if (!payload) return true;
-    const decoded = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/"))) as {
-      exp?: number;
-    };
-    if (!decoded.exp) return true;
-    return decoded.exp * 1000 <= Date.now() + 5000;
-  } catch {
-    return true;
-  }
-}
-
 function clearStoredOnboardingTokens() {
   clearStoredTenantSessionTokens();
 }
@@ -351,79 +336,6 @@ function redirectToSignIn() {
   if (hasRequestedSignInRedirect) return;
   hasRequestedSignInRedirect = true;
   redirectToTenantSignIn();
-}
-
-async function refreshOnboardingAccessToken() {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  const refreshToken = window.sessionStorage.getItem(
-    ONBOARDING_REFRESH_TOKEN_STORAGE_KEY,
-  );
-
-  if (!refreshToken) {
-    return null;
-  }
-
-  try {
-    const response = await fetch(buildApiUrl(apiEndpoints.refreshToken), {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ refresh: refreshToken }),
-    });
-
-    const body = (await response.json()) as Record<string, unknown>;
-    const nextAccessToken =
-      typeof body.access === "string" && body.access.trim() ? body.access : null;
-
-    if (!response.ok || !nextAccessToken) {
-      clearStoredOnboardingTokens();
-      redirectToSignIn();
-      return null;
-    }
-
-    window.sessionStorage.setItem(
-      ONBOARDING_ACCESS_TOKEN_STORAGE_KEY,
-      nextAccessToken,
-    );
-
-    if (typeof body.refresh === "string" && body.refresh.trim()) {
-      window.sessionStorage.setItem(
-        ONBOARDING_REFRESH_TOKEN_STORAGE_KEY,
-        body.refresh,
-      );
-    }
-
-    return nextAccessToken;
-  } catch {
-    clearStoredOnboardingTokens();
-    redirectToSignIn();
-    return null;
-  }
-}
-
-async function getValidOnboardingAccessToken() {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  const accessToken = window.sessionStorage.getItem(
-    ONBOARDING_ACCESS_TOKEN_STORAGE_KEY,
-  );
-
-  if (!accessToken) {
-    return null;
-  }
-
-  if (!isTokenExpired(accessToken)) {
-    return accessToken;
-  }
-
-  return refreshOnboardingAccessToken();
 }
 
 async function getOnboardingAuthHeaders(
@@ -438,16 +350,10 @@ async function getOnboardingAuthHeaders(
     headers.set("Content-Type", "application/json");
   }
 
-  const accessToken = requireAuth
-    ? await getValidOnboardingAccessToken()
-    : typeof window !== "undefined"
-      ? window.sessionStorage.getItem(ONBOARDING_ACCESS_TOKEN_STORAGE_KEY)
-      : null;
+  const accessToken = await getValidOnboardingAccessToken();
 
   if (accessToken) {
-    if (requireAuth || !isTokenExpired(accessToken)) {
-      headers.set("Authorization", `Bearer ${accessToken}`);
-    }
+    headers.set("Authorization", `Bearer ${accessToken}`);
   } else if (requireAuth) {
     clearStoredOnboardingTokens();
     redirectToSignIn();

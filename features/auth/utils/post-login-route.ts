@@ -44,11 +44,15 @@ export function resolvePostLoginRoute(args: {
     args.onboardingLaunched === true ||
     hasDashboardRedirect;
 
-  if (!isOnboardingCompleted) {
+  if (args.dashboardRole === "super" && !isOnboardingCompleted) {
     return "/onboarding";
   }
 
-  if (redirectTarget && !redirectTarget.startsWith("/dashboard")) {
+  if (
+    redirectTarget &&
+    !redirectTarget.startsWith("/dashboard") &&
+    !redirectTarget.startsWith("/onboarding")
+  ) {
     return redirectTarget;
   }
 
@@ -75,7 +79,7 @@ export function resolvePostLoginRoute(args: {
     return redirectTarget;
   }
 
-  return searchRedirectTo === "/onboarding"
+  return searchRedirectTo?.startsWith("/onboarding")
     ? "/dashboard"
     : searchRedirectTo || "/dashboard";
 }
