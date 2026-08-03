@@ -48,9 +48,11 @@ type UnitCardAction =
 export function UnitCard({
   darkMode,
   unit,
+  onOpen,
 }: {
   darkMode: boolean;
   unit: UnitSummary;
+  onOpen?: (unit: UnitSummary) => void;
 }) {
   const [actionMenuOpen, setActionMenuOpen] = useState(false);
   const [editUnitOpen, setEditUnitOpen] = useState(false);
@@ -99,16 +101,30 @@ export function UnitCard({
   return (
     <>
       <Card
+        role="button"
+        tabIndex={0}
+        aria-label={`View ${unit.name} details`}
+        onClick={() => onOpen?.(unit)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onOpen?.(unit);
+          }
+        }}
         className={cn(
-          "overflow-hidden rounded-[22px] border shadow-[0_24px_60px_-40px_rgba(15,23,42,0.4)]",
+          "cursor-pointer overflow-hidden rounded-[22px] border shadow-[0_24px_60px_-40px_rgba(15,23,42,0.4)] transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
           darkMode
-            ? "border-slate-800 bg-slate-900 text-white"
-            : "border-slate-100 bg-white",
+            ? "border-slate-800 bg-slate-900 text-white hover:border-primary/40 hover:bg-slate-800/80"
+            : "border-slate-100 bg-white hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-[0_28px_65px_-38px_rgba(15,23,42,0.5)]",
         )}
       >
         <div className="flex items-start justify-between px-6 pt-4">
           <UnitStatusPill status={unit.lifecycleStatus} />
-          <div className="relative">
+          <div
+            className="relative"
+            onClick={(event) => event.stopPropagation()}
+            onKeyDown={(event) => event.stopPropagation()}
+          >
             <button
               type="button"
               onClick={() => setActionMenuOpen((current) => !current)}
@@ -200,6 +216,7 @@ export function UnitCard({
             <div className="text-sm font-semibold">ASSIGNED ADMINS</div>
             <Link
               href={`/dashboard/units/${unit.id}`}
+              onClick={(event) => event.stopPropagation()}
               className="text-xs font-bold text-[#16a394]"
             >
               View Unit Audit

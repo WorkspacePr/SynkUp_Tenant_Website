@@ -1263,6 +1263,9 @@ function ImportUsersModal({
     "idle" | "validating" | "ready" | "error"
   >("idle");
   const [isConfirming, setIsConfirming] = useState(false);
+  const [isSendingImportInvitations, setIsSendingImportInvitations] =
+    useState(false);
+  const [queuedInvitationCount, setQueuedInvitationCount] = useState(0);
   const [invitationsQueued, setInvitationsQueued] = useState(false);
   const [createdUsers, setCreatedUsers] = useState<TenantUserListItem[]>([]);
   const [importReport, setImportReport] =
@@ -1929,8 +1932,15 @@ function ImportUsersModal({
             />
             {invitationsQueued ? (
               <div className="mt-4 rounded-2xl border border-teal-200 bg-teal-50 px-4 py-3 text-sm font-semibold text-primary dark:border-primary/30 dark:bg-primary/10 dark:text-teal-300">
-                {invitationEligibleRows.length} invitation emails queued for
+                {queuedInvitationCount} invitation email
+                {queuedInvitationCount === 1 ? "" : "s"} queued for
                 delivery.
+              </div>
+            ) : null}
+            {error ? (
+              <div className="mt-4 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-left text-sm font-semibold text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{error}</span>
               </div>
             ) : null}
             {flaggedRows.length || importReport?.report_url ? (
@@ -1960,23 +1970,61 @@ function ImportUsersModal({
                 variant="outline"
                 className={modalButtonClassName}
                 disabled={
-                  invitationEligibleRows.length === 0 || invitationsQueued
+                  invitationEligibleRows.length === 0 ||
+                  invitationsQueued ||
+                  isSendingImportInvitations
                 }
                 onClick={async () => {
                   const eligible = createdUsers.filter((user) =>
                     Boolean(user.email),
                   );
-                  const results = await Promise.all(
-                    eligible.map((user) => sendTenantUserInvitation(user.id)),
-                  );
-                  if (results.every((result) => result.success)) {
-                    setInvitationsQueued(true);
-                  } else {
-                    setError("Some invitations could not be queued.");
+                  const userIds = eligible.map((user) => user.id);
+                  if (!userIds.length) return;
+
+                  setError("");
+                  setIsSendingImportInvitations(true);
+                  const result =
+                    await bulkSendTenantUserInvitations(userIds);
+                  setIsSendingImportInvitations(false);
+
+                  if (!result.success) {
+                    setError(result.message);
+                    return;
                   }
+
+                  const results = result.data.results ?? [];
+                  const failedCount =
+                    result.data.failed_count ??
+                    results.filter(
+                      (item) =>
+                        item.success === false ||
+                        item.status?.toLowerCase() === "failed",
+                    ).length;
+                  const successCount =
+                    result.data.success_count ??
+                    (results.length
+                      ? results.filter(
+                          (item) =>
+                            item.success === true ||
+                            item.status?.toLowerCase() === "success",
+                        ).length
+                      : Math.max(0, userIds.length - failedCount));
+
+                  setQueuedInvitationCount(successCount);
+                  if (failedCount > 0) {
+                    setError(
+                      `${successCount} invitation${successCount === 1 ? "" : "s"} queued, but ${failedCount} could not be queued. Review the affected users and retry from the Users table.`,
+                    );
+                    return;
+                  }
+
+                  setInvitationsQueued(true);
                 }}
+                loading={isSendingImportInvitations}
               >
-                <Mail className="h-4 w-4" />
+                {!isSendingImportInvitations ? (
+                  <Mail className="h-4 w-4" />
+                ) : null}
                 Send Invitations
               </Button>
               <Button
@@ -4230,19 +4278,25 @@ export function UsersWorkspace({ darkMode }: { darkMode: boolean }) {
             {filtered.map((user) => (
               <Card
                 key={user.id}
+                role="button"
+                tabIndex={0}
+                aria-label={`View ${user.name} details`}
+                onClick={() => setSelectedUser(user)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setSelectedUser(user);
+                  }
+                }}
                 className={cn(
-                  "min-h-72 rounded-[22px] border p-5 shadow-[0_24px_60px_-40px_rgba(15,23,42,0.4)]",
+                  "min-h-72 cursor-pointer rounded-[22px] border p-5 shadow-[0_24px_60px_-40px_rgba(15,23,42,0.4)] transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
                   darkMode
-                    ? "border-slate-800 bg-slate-900"
-                    : "border-slate-100 bg-white",
+                    ? "border-slate-800 bg-slate-900 hover:border-primary/40 hover:bg-slate-800/80"
+                    : "border-slate-100 bg-white hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-[0_28px_65px_-38px_rgba(15,23,42,0.5)]",
                 )}
               >
                 <div className="flex items-start justify-between">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedUser(user)}
-                    className="flex gap-3 text-left"
-                  >
+                  <div className="flex gap-3 text-left">
                     <AvatarSeed seed={user.name} />
                     <div>
                       <h3 className="flex flex-wrap items-center gap-2 text-lg font-bold">
@@ -4257,13 +4311,15 @@ export function UsersWorkspace({ darkMode }: { darkMode: boolean }) {
                         {displayUserIdentity(user)}
                       </div>
                     </div>
-                  </button>
+                  </div>
                   <input
                     className="h-4 w-4 accent-primary"
                     type="checkbox"
                     aria-label={`Select ${user.name}`}
                     checked={selectedUserIds.has(user.id)}
                     onChange={() => toggleUserSelection(user.id)}
+                    onClick={(event) => event.stopPropagation()}
+                    onKeyDown={(event) => event.stopPropagation()}
                   />
                 </div>
                 <div className="mt-4 text-[10px] font-semibold uppercase">
