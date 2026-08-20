@@ -394,7 +394,7 @@ export function TenantDashboardShell({
                 canCreate={canCreateInEmptyState}
                 hasUnits={availability.units.length > 0}
                 onPrimaryAction={() => router.push(
-                  shouldShowUnitEmptyState || availability.units === 0
+                  shouldShowUnitEmptyState || availability.units.length === 0
                     ? "/dashboard/units"
                     : "/dashboard/audience",
                 )}

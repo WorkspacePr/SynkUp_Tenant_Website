@@ -37,7 +37,7 @@ function CreationPanel({
   const phase = getCreationPhase(step);
 
   return (
-    <div className="flex flex-col bg-[#fbfbff] px-6 py-6 sm:px-10 sm:py-8 lg:px-14 lg:py-10">
+    <div className="flex flex-col bg-background px-6 py-6 sm:px-10 sm:py-8 lg:px-14 lg:py-10">
       <header className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <BrandLogo
@@ -83,7 +83,7 @@ export function CreationShell({
     return (
       <main className="flex min-h-screen w-full">
         <section className="w-full overflow-hidden bg-card">
-          <div className="flex min-h-screen flex-col bg-[#f5f7fb]">
+          <div className="flex min-h-screen flex-col bg-background">
             <header className="flex items-center justify-between border-b border-border/70 bg-card px-8 py-7 lg:px-10">
               <BrandLogo
                 priority
