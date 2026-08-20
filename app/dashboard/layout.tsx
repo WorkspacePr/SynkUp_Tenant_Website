@@ -10,7 +10,7 @@ export default function DashboardLayout({
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-[#f7f8fb] px-6 text-center text-sm text-slate-600">
+        <div className="flex min-h-screen items-center justify-center bg-background px-6 text-center text-sm text-muted-foreground">
           Verifying your session...
         </div>
       }

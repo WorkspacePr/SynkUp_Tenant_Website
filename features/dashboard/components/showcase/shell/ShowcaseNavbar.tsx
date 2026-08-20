@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { Bell, Menu, Search } from "lucide-react";
 
+import { getTenantSettings } from "@/features/dashboard/api/tenant-settings";
 import { cn } from "@/utils";
 
 import { CommandSearchBar, CompactSelect } from "../cards/ShowcaseParts";
@@ -21,6 +23,7 @@ type ShowcaseNavbarProps = {
   onToggleSidebar: () => void;
   onLogout: () => void;
   isLoggingOut?: boolean;
+  settingsHref: string;
   commandBar?: CommandBarConfig;
 };
 
@@ -37,9 +40,11 @@ export function ShowcaseNavbar({
   onToggleSidebar,
   onLogout,
   isLoggingOut = false,
+  settingsHref,
   commandBar,
 }: ShowcaseNavbarProps) {
   const [profileOpen, setProfileOpen] = useState(false);
+  const [account, setAccount] = useState({ name: "Loading...", email: "" });
   const profileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -51,6 +56,17 @@ export function ShowcaseNavbar({
 
     document.addEventListener("mousedown", handlePointerDown);
     return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    void getTenantSettings().then((result) => {
+      if (!active || !result.success) return;
+      const user = result.data.current_user;
+      const name = user.full_name.trim() || [user.first_name, user.last_name].filter(Boolean).join(" ") || user.email;
+      setAccount({ name, email: user.email });
+    });
+    return () => { active = false; };
   }, []);
 
   return (
@@ -155,7 +171,7 @@ export function ShowcaseNavbar({
                     darkMode ? "text-white" : "text-slate-900",
                   )}
                 >
-                  John Doe
+                  {account.name}
                 </div>
                 <div
                   className={cn(
@@ -181,14 +197,14 @@ export function ShowcaseNavbar({
                 <div className="flex items-center gap-3">
                   <div className="h-12 w-12 rounded-full bg-[radial-gradient(circle_at_top,#6b7280,#111827)]" />
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-semibold">John Doe</div>
+                    <div className="truncate text-sm font-semibold">{account.name}</div>
                     <div
                       className={cn(
                         "truncate text-xs",
                         darkMode ? "text-slate-400" : "text-slate-500",
                       )}
                     >
-                      john.doe@synkup.edu
+                      {account.email || "Loading account..."}
                     </div>
                   </div>
                 </div>
@@ -229,22 +245,9 @@ export function ShowcaseNavbar({
                 </div>
 
                 <div className="mt-4 space-y-2">
-                  <button
-                    type="button"
-                    className={cn(
-                      "flex w-full items-center justify-between rounded-2xl px-3 py-2.5 text-left text-sm font-medium transition",
-                      darkMode
-                        ? "text-slate-200 hover:bg-slate-800"
-                        : "text-slate-700 hover:bg-slate-50",
-                    )}
-                  >
-                    <span>My Profile</span>
-                    <span className={cn(darkMode ? "text-slate-500" : "text-slate-400")}>
-                      View
-                    </span>
-                  </button>
-                  <button
-                    type="button"
+                  <Link
+                    href={settingsHref}
+                    onClick={() => setProfileOpen(false)}
                     className={cn(
                       "flex w-full items-center justify-between rounded-2xl px-3 py-2.5 text-left text-sm font-medium transition",
                       darkMode
@@ -256,7 +259,7 @@ export function ShowcaseNavbar({
                     <span className={cn(darkMode ? "text-slate-500" : "text-slate-400")}>
                       Open
                     </span>
-                  </button>
+                  </Link>
                   <button
                     type="button"
                     onClick={onLogout}
