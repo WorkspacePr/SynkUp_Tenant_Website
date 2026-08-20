@@ -17,6 +17,7 @@ const SESSION_ABSOLUTE_TIMEOUT_MS = 8 * 60 * 60 * 1000;
 export interface TenantLoginContext {
   userId?: number;
   organizationId?: number;
+  organizationName?: string;
   dashboardRole?: "super" | "unit" | "audience";
   unitScope?: number[];
   audienceScope?: number[];

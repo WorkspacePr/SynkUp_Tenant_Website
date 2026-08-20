@@ -52,10 +52,6 @@ async function readUpstreamPayload(response: Response) {
   };
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
 export async function GET(request: NextRequest) {
   try {
     const organizationId = request.nextUrl.searchParams.get("organizationId");
@@ -67,84 +63,17 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const headers = buildForwardHeaders(request);
+    const upstreamUrl = new URL(buildUpstreamUrl("/api/units/admin-candidates/"));
+    upstreamUrl.searchParams.set("assignable_to", "unit");
 
-    const [reviewResponse, invitesResponse] = await Promise.all([
-      fetch(
-        buildUpstreamUrl(`/api/organizations/${organizationId}/onboarding/review/`),
-        {
-          method: "GET",
-          headers,
-          cache: "no-store",
-        },
-      ),
-      fetch(
-        buildUpstreamUrl(`/api/organizations/${organizationId}/onboarding/admin-invites/`),
-        {
-          method: "GET",
-          headers,
-          cache: "no-store",
-        },
-      ),
-    ]);
-
-    const [reviewPayload, invitesPayload] = await Promise.all([
-      readUpstreamPayload(reviewResponse),
-      readUpstreamPayload(invitesResponse),
-    ]);
-
-    if (!reviewResponse.ok) {
-      return NextResponse.json(reviewPayload, { status: reviewResponse.status });
-    }
-
-    if (!invitesResponse.ok) {
-      return NextResponse.json(invitesPayload, { status: invitesResponse.status });
-    }
-
-    const reviewRecord = isRecord(reviewPayload) ? reviewPayload : {};
-    const primaryAdmin = isRecord(reviewRecord.primary_admin)
-      ? reviewRecord.primary_admin
-      : null;
-    const invitesRecord = isRecord(invitesPayload) ? invitesPayload : {};
-    const acceptedInviteCount = Number(invitesRecord.accepted_count ?? 0);
-
-    const candidates: Array<{
-      id: number;
-      name: string;
-      email: string;
-      source: "primary_admin";
-      is_primary_admin: boolean;
-    }> = [];
-
-    if (
-      primaryAdmin &&
-      typeof primaryAdmin.user_id === "number" &&
-      typeof primaryAdmin.email === "string"
-    ) {
-      const fullName = `${typeof primaryAdmin.first_name === "string" ? primaryAdmin.first_name : ""} ${typeof primaryAdmin.last_name === "string" ? primaryAdmin.last_name : ""}`.trim();
-
-      candidates.push({
-        id: primaryAdmin.user_id,
-        name: fullName || primaryAdmin.email,
-        email: primaryAdmin.email,
-        source: "primary_admin",
-        is_primary_admin: true,
-      });
-    }
-
-    return NextResponse.json({
-      results: candidates,
-      meta: {
-        organization_id: Number(organizationId),
-        note:
-          acceptedInviteCount > 0
-            ? "Primary admin is directly assignable. Accepted invitees are not included yet because the current upstream admin-invites payload does not expose assignable user ids."
-            : candidates.length === 0
-              ? "No assignable unit admins are currently available from upstream onboarding data."
-              : null,
-        accepted_invite_count: acceptedInviteCount,
-      },
+    const response = await fetch(upstreamUrl, {
+      method: "GET",
+      headers: buildForwardHeaders(request),
+      cache: "no-store",
     });
+    const payload = await readUpstreamPayload(response);
+
+    return NextResponse.json(payload, { status: response.status });
   } catch (error) {
     return NextResponse.json(
       {

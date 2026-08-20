@@ -3387,6 +3387,11 @@ export function UsersWorkspace({ darkMode }: { darkMode: boolean }) {
     return updatedUser;
   }
 
+  function openUserDetails(user: UserRecord) {
+    setSelectedUser(user);
+    void refreshUserProfile(user.id);
+  }
+
   async function sendInvitation(user: UserRecord, resent = false) {
     if (!user.email) {
       showToast(
@@ -4246,7 +4251,7 @@ export function UsersWorkspace({ darkMode }: { darkMode: boolean }) {
                 <td className="px-4 py-4">
                   <button
                     type="button"
-                    onClick={() => setSelectedUser(user)}
+                    onClick={() => openUserDetails(user)}
                     aria-label={`View ${user.name}`}
                     className="inline-flex h-9 w-9 items-center justify-center rounded-xl transition hover:bg-slate-100 dark:hover:bg-slate-800"
                   >
@@ -4281,11 +4286,11 @@ export function UsersWorkspace({ darkMode }: { darkMode: boolean }) {
                 role="button"
                 tabIndex={0}
                 aria-label={`View ${user.name} details`}
-                onClick={() => setSelectedUser(user)}
+                onClick={() => openUserDetails(user)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
-                    setSelectedUser(user);
+                    openUserDetails(user);
                   }
                 }}
                 className={cn(

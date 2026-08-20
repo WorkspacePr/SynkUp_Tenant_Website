@@ -9,13 +9,24 @@ import {
   Factory,
   Grid2X2,
   List,
+  Plus,
   Search,
   X,
 } from "lucide-react";
 
 import { Card } from "@/components/ui/Card";
+import {
+  DashboardToast,
+  type DashboardToastTone,
+} from "@/components/ui/DashboardToast";
 import { cn } from "@/utils";
-import { AvatarSeed, DashboardDataTable, PaginationControl, TableFilterBar } from "../units/shared";
+import {
+  AvatarSeed,
+  DashboardDataTable,
+  DetailMetricCard,
+  PaginationControl,
+  TableFilterBar,
+} from "../units/shared";
 import { UnitsPageHeader } from "../units/sections/UnitsPageHeader";
 
 type AudienceStatus = "DRAFT" | "ACTIVE" | "INACTIVE" | "ARCHIVED";
@@ -66,6 +77,12 @@ type Audience = {
   status: AudienceStatus;
   healthSignals: AudienceHealthSignals;
   transferEvents: AudienceTransferEvent[];
+};
+
+type ToastNotice = {
+  tone: DashboardToastTone;
+  title: string;
+  description: string;
 };
 
 const AUDIENCES: Audience[] = [
@@ -394,43 +411,6 @@ function HealthDot({ health }: { health: Health }) {
   );
 }
 
-function MetricCard({
-  label,
-  value,
-  tone,
-  darkMode,
-}: {
-  label: string;
-  value: number;
-  tone?: "danger" | "warning" | "muted";
-  darkMode: boolean;
-}) {
-  return (
-    <Card
-      className={cn(
-        "rounded-[18px] border px-4 py-4 shadow-none",
-        darkMode
-          ? "border-slate-800 bg-slate-900"
-          : "border-slate-200 bg-white",
-      )}
-    >
-      <div className="text-[11px] font-semibold uppercase tracking-[.06em] text-slate-500">
-        {label}
-      </div>
-      <div
-        className={cn(
-          "mt-2 text-xl font-bold text-primary",
-          tone === "danger" && "text-red-600",
-          tone === "warning" && "text-amber-600",
-          tone === "muted" && "text-slate-500",
-        )}
-      >
-        {value}
-      </div>
-    </Card>
-  );
-}
-
 function EmptyAudience({ darkMode }: { darkMode: boolean }) {
   return (
     <Card
@@ -461,6 +441,78 @@ function EmptyAudience({ darkMode }: { darkMode: boolean }) {
         </button>
       </div>
     </Card>
+  );
+}
+
+function audienceCreatedDate(audience: Audience) {
+  if (audience.id > 1000000000) return "Just now";
+  return ["Sep. 12, 2025", "Sep. 12, 2025", "Sep. 20, 2025", "Oct. 1, 2025", "Aug. 5, 2025"][audience.id - 1] ?? "Jan. 10, 2024";
+}
+
+function CreateAudienceModal({
+  darkMode,
+  onClose,
+  onCreate,
+}: {
+  darkMode: boolean;
+  onClose: () => void;
+  onCreate: (audience: Audience) => void;
+}) {
+  const [name, setName] = useState("");
+  const [type, setType] = useState("Class");
+  const [adminName, setAdminName] = useState("Dr. Amina Sule");
+
+  function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
+
+    onCreate({
+      id: Date.now(),
+      name: trimmedName,
+      unitId: 1,
+      unit: "Legacy Campus",
+      type,
+      identifier: `LEG-${trimmedName.replace(/[^a-z0-9]/gi, "").slice(0, 8).toUpperCase()}-${new Date().getFullYear()}`,
+      admins: adminName
+        ? [{ id: `admin-${Date.now()}`, name: adminName, email: "admin@synkup.edu", role: "Audience Admin", status: "ACTIVE", lastActivity: "Just now", unitScope: "Legacy Campus", isPrimary: true }]
+        : [],
+      members: 0,
+      pending: 0,
+      invalidatedMemberships: 0,
+      status: "ACTIVE",
+      healthSignals: { pendingInvitationThreshold: 50, staleActivity: false, deliveryFailures: 0, syncFailures: 0, blockedAttendance: false, unresolvedCriticalIssues: 0, insufficientData: false },
+      transferEvents: [],
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/45 p-4" onMouseDown={onClose}>
+      <form
+        onSubmit={submit}
+        onMouseDown={(event) => event.stopPropagation()}
+        className={cn("w-full max-w-lg rounded-3xl border p-6 shadow-2xl", darkMode ? "border-slate-700 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-900")}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div><h2 className="text-xl font-bold">Create Audience</h2><p className="mt-1 text-sm text-slate-500">Create an audience within Legacy Campus.</p></div>
+          <button type="button" onClick={onClose} aria-label="Close create audience" className="rounded-xl p-2 hover:bg-slate-100 dark:hover:bg-slate-800"><X className="h-5 w-5" /></button>
+        </div>
+        <label className="mt-6 block text-sm font-semibold">Audience name
+          <input autoFocus required value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. CSC 401" className={cn("mt-2 w-full rounded-xl border px-3 py-2.5 outline-none ring-primary focus:ring-2", darkMode ? "border-slate-700 bg-slate-800" : "border-slate-200 bg-white")} />
+        </label>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <label className="block text-sm font-semibold">Type
+            <select value={type} onChange={(event) => setType(event.target.value)} className={cn("mt-2 w-full rounded-xl border px-3 py-2.5", darkMode ? "border-slate-700 bg-slate-800" : "border-slate-200 bg-white")}>
+              <option>Class</option><option>Service</option><option>Meeting</option>
+            </select>
+          </label>
+          <label className="block text-sm font-semibold">Assigned admin
+            <input value={adminName} onChange={(event) => setAdminName(event.target.value)} className={cn("mt-2 w-full rounded-xl border px-3 py-2.5", darkMode ? "border-slate-700 bg-slate-800" : "border-slate-200 bg-white")} />
+          </label>
+        </div>
+        <div className="mt-7 flex justify-end gap-3"><button type="button" onClick={onClose} className="rounded-xl px-4 py-2.5 text-sm font-semibold">Cancel</button><button type="submit" className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white"><Plus className="h-4 w-4" />Create Audience</button></div>
+      </form>
+    </div>
   );
 }
 
@@ -1034,57 +1086,40 @@ function AudienceDrawer({
 }
 
 export function AudienceWorkspace({ darkMode }: { darkMode: boolean }) {
+  const [audiences, setAudiences] = useState(AUDIENCES);
   const [view, setView] = useState<"table" | "grid">("table");
   const [query, setQuery] = useState("");
-  const [unit, setUnit] = useState("all");
   const [type, setType] = useState("all");
   const [status, setStatus] = useState("all");
-  const [health, setHealth] = useState("all");
   const [selected, setSelected] = useState<Audience | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [toast, setToast] = useState<ToastNotice | null>(null);
   const filtered = useMemo(
     () =>
-      AUDIENCES.filter(
+      audiences.filter(
         (item) =>
           `${item.name} ${item.unit} ${item.admins.map((admin) => `${admin.name} ${admin.email} ${admin.role}`).join(" ")} ${item.type} ${item.identifier}`
             .toLowerCase()
             .includes(query.toLowerCase()) &&
-          (unit === "all" || item.unit === unit) &&
           (type === "all" || item.type === type) &&
-          (status === "all" || item.status === status) &&
-          (health === "all" || calculateAudienceHealth(item).state === health),
+          (status === "all" || item.status === status),
       ),
-    [query, unit, type, status, health],
+    [audiences, query, type, status],
   );
-  const adminCoverageAlerts = AUDIENCES.filter(
-    (audience) =>
-      audience.status !== "DRAFT" && audience.admins.length === 0,
-  ).length;
   const metrics = [
-    { label: "Total Audiences", value: AUDIENCES.length },
+    { title: "Total Audiences", value: String(audiences.length) },
     {
-      label: "Active Audiences",
-      value: AUDIENCES.filter((a) => a.status === "ACTIVE").length,
+      title: "Total Users",
+      value: String(audiences.reduce((sum, audience) => sum + (audience.members ?? 0), 0)),
     },
     {
-      label: "Admin Coverage Alerts",
-      value: adminCoverageAlerts,
-      tone: adminCoverageAlerts > 0 ? ("danger" as const) : ("muted" as const),
+      title: "Audience Admins",
+      value: String(new Set(audiences.flatMap((audience) => audience.admins.map((admin) => admin.id))).size),
     },
     {
-      label: "Drafts Awaiting Admin",
-      value: AUDIENCES.filter(
-        (a) => a.status === "DRAFT" && a.admins.length === 0,
-      ).length,
-      tone: "warning" as const,
-    },
-    {
-      label: "No Members",
-      value: AUDIENCES.filter((a) => !a.members).length,
-      tone: "danger" as const,
-    },
-    {
-      label: "Pending Invites",
-      value: AUDIENCES.reduce((sum, a) => sum + (a.pending ?? 0), 0),
+      title: "Pending Approval",
+      value: String(audiences.reduce((sum, audience) => sum + (audience.pending ?? 0), 0)),
+      valueClassName: "text-amber-600 dark:text-amber-400",
     },
   ];
   const options = (values: string[], all: string) => [
@@ -1095,34 +1130,26 @@ export function AudienceWorkspace({ darkMode }: { darkMode: boolean }) {
     <section className="pb-10">
       <UnitsPageHeader
         darkMode={darkMode}
-        title="Audience Oversight"
-        description="Organisation-wide view of all audience across units"
+        title="Audiences"
+        description="Manage audiences within your unit"
         // backHref="/dashboard"
         // backLabel="Back to Dashboard"
         breadcrumb={[
-          { label: "Dashboard" },
-          { label: "Audience", active: true },
+          { label: "Legacy Campus", active: true },
         ]}
       />
-      <div
-        className={cn(
-          "mt-2 flex items-start gap-4 rounded-2xl border-l-4 border-green-600 px-5 py-4 text-sm",
-          darkMode ? "bg-slate-900" : "bg-[#eef1f3]",
-        )}
-      >
-        <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-green-600" />
-        <p>
-          Audience Management is locked for each unit. This is a{" "}
-          <b>READ-ONLY</b> view; all edits and creation happen in the Unit Admin
-          Portal.
-        </p>
-      </div>
-      <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {metrics.map((metric) => (
-          <MetricCard key={metric.label} {...metric} darkMode={darkMode} />
+          <DetailMetricCard
+            key={metric.title}
+            darkMode={darkMode}
+            variant="simple"
+            {...metric}
+          />
         ))}
       </div>
-      <div className="mt-6 flex gap-2">
+      <div className="mt-7 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex gap-2">
         <button
           onClick={() => setView("table")}
           className={cn(
@@ -1151,6 +1178,8 @@ export function AudienceWorkspace({ darkMode }: { darkMode: boolean }) {
           <Grid2X2 className="h-4 w-4" />
           Grid
         </button>
+        </div>
+        <button onClick={() => setCreateOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-teal-700"><Plus className="h-5 w-5" />Create Audience</button>
       </div>
       <Card
         className={cn(
@@ -1162,27 +1191,19 @@ export function AudienceWorkspace({ darkMode }: { darkMode: boolean }) {
       >
         <TableFilterBar
           darkMode={darkMode}
-          searchPlaceholder="Search by audience name, unit, admin, type, or identifier"
+          searchPlaceholder="Search audiences"
           searchValue={query}
           onSearchChange={setQuery}
           selects={[
             {
-              label: "Unit",
-              value: unit,
-              onChange: setUnit,
-              options: options(
-                ["Legacy Campus", "Heritage Campus"],
-                "All Units",
-              ),
-            },
-            {
-              label: "Type",
+              label: "Audience",
               value: type,
               onChange: setType,
               options: options(
-                ["Lecture", "Laboratory", "Seminar", "Service"],
-                "All Types",
+                ["Class", "Lecture", "Laboratory", "Seminar", "Service", "Meeting"],
+                "All Audiences",
               ),
+              className: "w-full sm:w-auto sm:min-w-44",
             },
             {
               label: "Status",
@@ -1192,15 +1213,7 @@ export function AudienceWorkspace({ darkMode }: { darkMode: boolean }) {
                 ["DRAFT", "ACTIVE", "INACTIVE", "ARCHIVED"],
                 "All Status",
               ),
-            },
-            {
-              label: "Health",
-              value: health,
-              onChange: setHealth,
-              options: options(
-                ["healthy", "warning", "critical", "neutral"],
-                "All Health",
-              ),
+              className: "w-full sm:w-auto sm:min-w-36",
             },
           ]}
           segments={[]}
@@ -1212,7 +1225,7 @@ export function AudienceWorkspace({ darkMode }: { darkMode: boolean }) {
         ) : view === "table" ? (
           <DashboardDataTable
             darkMode={darkMode}
-            headers={["Audience Name", "Parent Unit", "Assigned Admin", "Audience Members", "Pending", "Status", "Health", "Actions"]}
+            headers={["Audience Name", "Type", "Assigned Admin", "Members", "Status", "Date Created"]}
           >
                 {filtered.map((a) => (
                   <tr
@@ -1223,7 +1236,7 @@ export function AudienceWorkspace({ darkMode }: { darkMode: boolean }) {
                     )}
                   >
                     <td className="px-4 py-5 font-semibold">{a.name}</td>
-                    <td className="px-4 py-5 text-slate-500">{a.unit}</td>
+                    <td className="px-4 py-5 text-slate-500">{a.type}</td>
                     <td className="px-4 py-5">
                       {a.admins.length ? (
                         <div className="flex items-center gap-2">
@@ -1259,14 +1272,8 @@ export function AudienceWorkspace({ darkMode }: { darkMode: boolean }) {
                     <td className="px-4 py-5 text-slate-500">
                       {a.members ?? "-"}
                     </td>
-                    <td className="px-4 py-5 text-slate-500">
-                      {a.pending ?? "-"}
-                    </td>
                     <td className="px-4 py-5">
                       <StatusPill status={a.status} />
-                    </td>
-                    <td className="px-4 py-5">
-                      <HealthDot health={calculateAudienceHealth(a).state} />
                     </td>
                     <td className="px-4 py-5">
                       <button
@@ -1275,7 +1282,7 @@ export function AudienceWorkspace({ darkMode }: { darkMode: boolean }) {
                         title={`View ${a.name}`}
                         className="inline-flex rounded-lg p-2 text-primary transition hover:bg-[#e7f8f5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                       >
-                        <Eye className="h-4 w-4" />
+                        <Eye className="mr-2 h-4 w-4" />{audienceCreatedDate(a)}
                       </button>
                     </td>
                   </tr>
@@ -1369,7 +1376,7 @@ export function AudienceWorkspace({ darkMode }: { darkMode: boolean }) {
         )}
         <PaginationControl
           darkMode={darkMode}
-          summary={`Showing ${filtered.length} of ${AUDIENCES.length} audiences`}
+          summary={`Showing ${filtered.length} of ${audiences.length} audiences`}
           items={[1]}
           activePage={1}
         />
@@ -1379,6 +1386,30 @@ export function AudienceWorkspace({ darkMode }: { darkMode: boolean }) {
           audience={selected}
           darkMode={darkMode}
           onClose={() => setSelected(null)}
+        />
+      ) : null}
+      {createOpen ? (
+        <CreateAudienceModal
+          darkMode={darkMode}
+          onClose={() => setCreateOpen(false)}
+          onCreate={(audience) => {
+            setAudiences((current) => [audience, ...current]);
+            setCreateOpen(false);
+            setSelected(audience);
+            setToast({
+              tone: "success",
+              title: "Audience created",
+              description: `${audience.name} is ready for member management.`,
+            });
+          }}
+        />
+      ) : null}
+      {toast ? (
+        <DashboardToast
+          tone={toast.tone}
+          title={toast.title}
+          description={toast.description}
+          onClose={() => setToast(null)}
         />
       ) : null}
     </section>

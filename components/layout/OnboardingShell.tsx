@@ -35,7 +35,7 @@ export function OnboardingShell({ children }: OnboardingShellProps) {
             </div>
           </div>
         </header>
-        <div className="flex-1 bg-[#f7f8fb] px-4 py-8 sm:px-6 lg:px-10 lg:py-10 xl:px-12">
+        <div className="flex-1 bg-background px-4 py-8 sm:px-6 lg:px-10 lg:py-10 xl:px-12">
           {children}
         </div>
         <footer className="flex items-center justify-between border-t border-border/70 bg-card px-6 py-4 text-sm text-secondary/75">
