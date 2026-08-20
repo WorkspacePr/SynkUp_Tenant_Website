@@ -299,6 +299,25 @@ function isTenantUserDetail(value: unknown): value is TenantUserDetail {
   );
 }
 
+function findTenantUserDetail(payload: unknown): TenantUserDetail | null {
+  const queue: unknown[] = [payload];
+  const visited = new Set<unknown>();
+
+  while (queue.length > 0) {
+    const candidate = queue.shift();
+    if (!isRecord(candidate) || visited.has(candidate)) continue;
+    visited.add(candidate);
+
+    if (isTenantUserDetail(candidate)) return candidate;
+
+    for (const value of Object.values(candidate)) {
+      if (isRecord(value)) queue.push(value);
+    }
+  }
+
+  return null;
+}
+
 function findPaginatedUsers(payload: unknown): TenantUsersResponse {
   const queue: unknown[] = [payload];
   const visited = new Set<unknown>();
@@ -424,14 +443,15 @@ export async function getTenantUser(userId: number) {
         message: getApiErrorMessage(body, "Unable to load this user right now."),
       };
     }
-    if (!isTenantUserDetail(body)) {
+    const detail = findTenantUserDetail(body);
+    if (!detail) {
       return {
         success: false as const,
         message: "The server returned an invalid user profile.",
       };
     }
 
-    return { success: true as const, data: body };
+    return { success: true as const, data: detail };
   } catch {
     return {
       success: false as const,
@@ -462,14 +482,15 @@ export async function updateTenantUser(
         message: getApiErrorMessage(body, "Unable to update this user right now."),
       };
     }
-    if (!isTenantUserDetail(body)) {
+    const detail = findTenantUserDetail(body);
+    if (!detail) {
       return {
         success: false as const,
         message: "The user was updated, but the server returned an invalid profile.",
       };
     }
 
-    return { success: true as const, data: body };
+    return { success: true as const, data: detail };
   } catch {
     return {
       success: false as const,

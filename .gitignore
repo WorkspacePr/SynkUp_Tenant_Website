@@ -42,3 +42,6 @@ next-env.d.ts
 
 /.tmp_synkup_mvp
 SynkUp_First_MVP_One_Month_Roadmap.docx
+branch_structure.json
+temp_auto_push.bat
+temp_interactive_push.bat

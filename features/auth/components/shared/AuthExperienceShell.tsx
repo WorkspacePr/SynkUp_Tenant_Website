@@ -40,7 +40,7 @@ export function AuthExperienceShell({
           </div>
         </AuthShell>
 
-        <div className="flex flex-col bg-[#fbfbff] px-6 py-6 sm:px-10 sm:py-8 lg:px-14 lg:py-10">
+        <div className="flex flex-col bg-background px-6 py-6 sm:px-10 sm:py-8 lg:px-14 lg:py-10">
           <header className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <BrandLogo

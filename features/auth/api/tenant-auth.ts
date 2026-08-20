@@ -202,27 +202,27 @@ function resolveDashboardRole(payload: TenantLoginResponse) {
   }
 
   if (
-    membershipType?.includes("audience") ||
-    roles.some((role) => role.includes("audience"))
-  ) {
-    return "audience" as const;
-  }
-
-  if (
     membershipType?.includes("unit") ||
     roles.some((role) => role.includes("unit"))
   ) {
     return "unit" as const;
   }
 
-  const audienceScope = normalizeNumberArray(payload.access?.audience_scope);
-  if (audienceScope.length > 0) {
+  if (
+    membershipType?.includes("audience") ||
+    roles.some((role) => role.includes("audience"))
+  ) {
     return "audience" as const;
   }
 
   const unitScope = normalizeNumberArray(payload.access?.unit_scope);
   if (unitScope.length > 0) {
     return "unit" as const;
+  }
+
+  const audienceScope = normalizeNumberArray(payload.access?.audience_scope);
+  if (audienceScope.length > 0) {
+    return "audience" as const;
   }
 
   return null;
