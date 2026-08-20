@@ -65,11 +65,15 @@ export function ReportsWorkspace({ darkMode }: { darkMode: boolean }) {
   useEffect(() => { if (!hasGeneratingReports) return; const interval = window.setInterval(() => void loadReports(true), 5000); return () => window.clearInterval(interval); }, [hasGeneratingReports, params]);
 
   async function generateReport() {
-    const selectedScopeId = scope === "unit" ? Number(unitId) : scope === "audience" ? Number(audienceId) : null;
-    if (scope !== "organization" && (!Number.isInteger(selectedScopeId) || selectedScopeId < 1)) { setToast(`Select a valid ${scope} before generating this report.`); return; }
+    let selectedScopeId: number | undefined;
+    if (scope !== "organization") {
+      const scopeId = Number(scope === "unit" ? unitId : audienceId);
+      if (!Number.isInteger(scopeId) || scopeId < 1) { setToast(`Select a valid ${scope} before generating this report.`); return; }
+      selectedScopeId = scopeId;
+    }
     if (startDate && endDate && startDate > endDate) { setToast("The start date must be before the end date."); return; }
     setRequesting(true);
-    const response = await createTenantReport({ report_type: reportType, scope, unit_id: scope === "unit" ? selectedScopeId ?? undefined : undefined, audience_id: scope === "audience" ? selectedScopeId ?? undefined : undefined, start_date: startDate || null, end_date: endDate || null, requested_format: "csv" });
+    const response = await createTenantReport({ report_type: reportType, scope, unit_id: scope === "unit" ? selectedScopeId : undefined, audience_id: scope === "audience" ? selectedScopeId : undefined, start_date: startDate || null, end_date: endDate || null, requested_format: "csv" });
     setRequesting(false);
     if (!response.success) { setToast(response.message); return; }
     setShowGenerator(false); setToast(`Your report “${response.data.name}” is being generated.`); setPage(1); await loadReports(true);
