@@ -43,6 +43,7 @@ function buildRestoredContext(context: ReturnType<typeof readTenantLoginContext>
   return {
     userId: context.userId,
     organizationId: context.organizationId,
+    organizationName: context.organizationName,
     dashboardRole: context.dashboardRole,
     unitScope: context.unitScope,
     audienceScope: context.audienceScope,
@@ -295,10 +296,11 @@ export function SignInFlow() {
     const currentLoginContext = readTenantLoginContext();
     clearTenantLoginContext();
 
-    if (nextTarget.startsWith("/onboarding") && currentLoginContext) {
+    if (currentLoginContext) {
       storeTenantLoginContext({
         userId: currentLoginContext.userId,
         organizationId: currentLoginContext.organizationId,
+        organizationName: currentLoginContext.organizationName,
         dashboardRole: currentLoginContext.dashboardRole,
         unitScope: currentLoginContext.unitScope,
         audienceScope: currentLoginContext.audienceScope,
@@ -307,8 +309,8 @@ export function SignInFlow() {
         onboardingLaunched: currentLoginContext.onboardingLaunched,
         subdomain: currentLoginContext.subdomain,
         email: currentLoginContext.email,
-        redirectTo: "/onboarding",
-        resumeTarget: "onboarding",
+        redirectTo: nextTarget.startsWith("/onboarding") ? "/onboarding" : undefined,
+        resumeTarget: nextTarget.startsWith("/onboarding") ? "onboarding" : undefined,
       });
     }
 
@@ -364,6 +366,7 @@ export function SignInFlow() {
     storeTenantLoginContext({
       userId: result.userId ?? undefined,
       organizationId: result.organizationId ?? undefined,
+      organizationName: result.organizationName || undefined,
       dashboardRole: result.dashboardRole ?? undefined,
       unitScope: result.unitScope,
       audienceScope: result.audienceScope,

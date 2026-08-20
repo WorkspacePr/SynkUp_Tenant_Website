@@ -5,8 +5,15 @@ import { usePathname, useSearchParams } from "next/navigation";
 
 import {
   getValidOnboardingAccessToken,
+  readTenantLoginContext,
   redirectToTenantSignIn,
 } from "@/lib/auth/tenant-session";
+import {
+  canAccessDashboardSection,
+  getDashboardSection,
+  getEffectiveDashboardRole,
+  getAllowedDashboardPath,
+} from "@/lib/auth/rbac";
 
 function buildCurrentRoute(pathname: string, searchParams: URLSearchParams) {
   const query = searchParams.toString();
@@ -31,6 +38,17 @@ export function DashboardSessionGuard({
 
       if (!accessToken) {
         redirectToTenantSignIn(currentRoute);
+        return;
+      }
+
+      const role = getEffectiveDashboardRole(readTenantLoginContext());
+      if (!role) {
+        redirectToTenantSignIn(currentRoute);
+        return;
+      }
+
+      if (!canAccessDashboardSection(role, getDashboardSection(pathname))) {
+        window.location.replace(getAllowedDashboardPath(role));
         return;
       }
 

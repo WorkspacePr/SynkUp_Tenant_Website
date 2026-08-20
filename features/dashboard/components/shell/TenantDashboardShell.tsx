@@ -1,9 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
-import { buildTenantSignInUrl, logoutTenantSession } from "@/lib/auth/tenant-session";
+import { buildTenantSignInUrl, logoutTenantSession, readTenantLoginContext } from "@/lib/auth/tenant-session";
+import type { TenantLoginContext } from "@/lib/auth/tenant-session";
+import { canAccessNavigationItem, getAccessibleDashboardRoles, getEffectiveDashboardRole } from "@/lib/auth/rbac";
+import { getTenantUnits } from "@/features/dashboard/api/tenant-units";
+import { getOrganizationOnboardingAudiences } from "@/features/onboarding/api/tenant-onboarding";
 import { cn } from "@/utils";
 
 import {
@@ -33,9 +37,17 @@ import type { RoleKey, SelectOption } from "../showcase";
 import { UnitsWorkspace } from "../showcase/units/UnitsWorkspace";
 import { AudienceWorkspace } from "../showcase/audience/AudienceWorkspace";
 import { UsersWorkspace } from "../showcase/users/UsersWorkspace";
+import { AttendanceWorkspace } from "../showcase/attendance/AttendanceWorkspace";
+import { ReportsWorkspace } from "../showcase/reports/ReportsWorkspace";
+import { SubscriptionWorkspace } from "../showcase/subscription/SubscriptionWorkspace";
+import { SettingsWorkspace } from "../showcase/settings/SettingsWorkspace";
+import { InheritedDashboardEmptyState } from "./InheritedDashboardEmptyState";
 
-type SectionKey = "dashboard" | "units" | "audience" | "users";
+type SectionKey = "dashboard" | "units" | "audience" | "users" | "attendance" | "reports" | "subscription" | "settings";
 type UnitWorkspaceView = "overview" | "list" | "detail";
+type ThemePreference = "light" | "dark";
+
+const THEME_PREFERENCE_STORAGE_KEY = "synkup-theme-preference";
 
 type TenantDashboardShellProps = {
   initialSection?: SectionKey;
@@ -49,10 +61,11 @@ export function TenantDashboardShell({
   initialUnitId,
 }: TenantDashboardShellProps) {
   const router = useRouter();
-  const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [role, setRole] = useState<RoleKey>("super");
-  const [themePreference, setThemePreference] = useState<"light" | "dark">("light");
+  const [loginContext, setLoginContext] = useState<TenantLoginContext | null>(null);
+  const authenticatedRole = getEffectiveDashboardRole(loginContext);
+  const [role, setRole] = useState<RoleKey>("audience");
+  const [themePreference, setThemePreference] = useState<ThemePreference>("light");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -66,72 +79,160 @@ export function TenantDashboardShell({
       "audience-Activity Feed": true,
     },
   );
-  const [selectedScope, setSelectedScope] = useState(
-    roleConfigs.super.scopeOptions?.[0] ?? "Organisation: SynkUp University",
-  );
+  const [selectedScope, setSelectedScope] = useState("");
+  const [availability, setAvailability] = useState({
+    loading: true,
+    units: [] as { id: number; name: string }[],
+    audiences: [] as { id: number; name: string; unitId: number }[],
+  });
 
   useEffect(() => {
-    const requestedRole = searchParams.get("role");
-    const requestedUnitId = searchParams.get("unitId");
-    const requestedAudienceId = searchParams.get("audienceId");
+    const context = readTenantLoginContext();
+    setLoginContext(context);
+    const authenticatedDashboardRole = getEffectiveDashboardRole(context);
+    if (!authenticatedDashboardRole) return;
 
+    const requestedView = searchParams.get("view");
     const nextRole: RoleKey =
-      requestedRole === "unit" || requestedRole === "audience"
-        ? requestedRole
-        : "super";
+      (requestedView === "super" || requestedView === "unit" || requestedView === "audience") &&
+      getAccessibleDashboardRoles(authenticatedDashboardRole).includes(requestedView)
+        ? requestedView
+        : authenticatedDashboardRole;
 
     setRole(nextRole);
-
-    if (nextRole === "unit" && requestedUnitId) {
-      setSelectedScope(`Unit: #${requestedUnitId}`);
-      return;
-    }
-
-    if (nextRole === "audience" && requestedAudienceId) {
-      setSelectedScope(`Audience: #${requestedAudienceId}`);
-      return;
-    }
-
     setSelectedScope(
-      roleConfigs[nextRole].scopeOptions?.[0] ?? "Organisation: SynkUp University",
+      nextRole === "super"
+        ? context?.organizationName || "Organisation"
+        : "Loading scope...",
     );
   }, [searchParams]);
+
+  useEffect(() => {
+    const storedTheme = window.localStorage.getItem(THEME_PREFERENCE_STORAGE_KEY);
+    const nextTheme: ThemePreference = storedTheme === "dark" ? "dark" : "light";
+
+    setThemePreference(nextTheme);
+    document.documentElement.classList.toggle("dark", nextTheme === "dark");
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const organizationId = loginContext?.organizationId;
+
+    if (!organizationId) {
+      setAvailability({ loading: false, units: [], audiences: [] });
+      return () => { active = false; };
+    }
+
+    setAvailability((current) => ({ ...current, loading: true }));
+    void Promise.all([
+      getTenantUnits({ page: 1 }),
+      getOrganizationOnboardingAudiences(organizationId),
+    ]).then(([unitsResult, audiencesResult]) => {
+      if (!active) return;
+      setAvailability({
+        loading: false,
+        units: unitsResult.success
+          ? unitsResult.data.data.map((unit) => ({ id: unit.unit_id, name: unit.name }))
+          : [],
+        audiences: audiencesResult.success
+          ? audiencesResult.data.results.map((audience) => ({
+              id: audience.audience_id,
+              name: audience.name,
+              unitId: audience.unit,
+            }))
+          : [],
+      });
+    });
+
+    return () => { active = false; };
+  }, [loginContext?.organizationId]);
+
+  useEffect(() => {
+    if (availability.loading) return;
+
+    const options = role === "super"
+      ? [loginContext?.organizationName || "Organisation"]
+      : role === "unit"
+        ? availability.units
+            .filter((unit) => authenticatedRole === "super" || (loginContext?.unitScope ?? []).includes(unit.id))
+            .map((unit) => `Unit: ${unit.name}`)
+        : availability.audiences
+            .filter((audience) =>
+              authenticatedRole === "super" ||
+              (authenticatedRole === "unit" && (loginContext?.unitScope ?? []).includes(audience.unitId)) ||
+              (authenticatedRole === "audience" && (loginContext?.audienceScope ?? []).includes(audience.id)),
+            )
+            .map((audience) => `Audience: ${audience.name}`);
+
+    if (options.length > 0 && !options.includes(selectedScope)) {
+      setSelectedScope(options[0]);
+    }
+  }, [authenticatedRole, availability, loginContext, role, selectedScope]);
 
   const config = roleConfigs[role];
   const activeSection = initialSection;
   const unitWorkspaceView = initialUnitWorkspaceView;
   const selectedUnitId =
     Number(searchParams.get("unitId") ?? initialUnitId ?? 1) || 1;
+  const dashboardViewQuery = `?view=${role}`;
   const navMain = useMemo(
     () =>
-      config.navMain.map((item) => ({
+      config.navMain.filter((item) => canAccessNavigationItem(role, item.label)).map((item) => ({
         ...item,
         href:
           item.label === "Dashboard"
-            ? "/dashboard"
+            ? `/dashboard${dashboardViewQuery}`
             : item.label === "Units"
-              ? "/dashboard/units"
-              : item.label === "Audience"
-                ? "/dashboard/audience"
-              : item.label === "Users"
-                ? "/dashboard/users"
-              : item.href,
+              ? `/dashboard/units${dashboardViewQuery}`
+            : item.label === "Audience" || item.label === "Audiences"
+              ? `/dashboard/audience${dashboardViewQuery}`
+            : item.label === "Users"
+                ? `/dashboard/users${dashboardViewQuery}`
+            : item.label === "Attendance"
+                ? `/dashboard/attendance${dashboardViewQuery}`
+                : item.label === "Reports"
+                  ? `/dashboard/reports${dashboardViewQuery}`
+                : item.label === "Subscription"
+                  ? `/dashboard/subscription${dashboardViewQuery}`
+                  : item.label === "Settings"
+                    ? `/dashboard/settings${dashboardViewQuery}`
+                  : item.href,
         active:
           activeSection === "units"
             ? item.label === "Units"
             : activeSection === "audience"
-              ? item.label === "Audience"
+              ? item.label === "Audience" || item.label === "Audiences"
             : activeSection === "users"
               ? item.label === "Users"
-            : item.label === "Dashboard",
+            : activeSection === "attendance"
+              ? item.label === "Attendance"
+              : activeSection === "reports"
+                ? item.label === "Reports"
+                : activeSection === "subscription"
+                  ? item.label === "Subscription"
+                  : activeSection === "settings"
+                    ? item.label === "Settings"
+              : item.label === "Dashboard",
       })),
-    [activeSection, config.navMain],
+    [activeSection, config.navMain, dashboardViewQuery, role],
+  );
+  const navBottom = useMemo(
+    () =>
+      config.navBottom.map((item) => ({
+        ...item,
+        href: item.label === "Settings" ? `/dashboard/settings${dashboardViewQuery}` : item.href,
+        active: item.label === "Settings" && activeSection === "settings",
+      })),
+    [activeSection, config.navBottom, dashboardViewQuery],
   );
   const darkMode = themePreference === "dark";
 
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", darkMode);
-  }, [darkMode]);
+  function handleThemeChange(nextTheme: ThemePreference) {
+    setThemePreference(nextTheme);
+    window.localStorage.setItem(THEME_PREFERENCE_STORAGE_KEY, nextTheme);
+    document.documentElement.classList.toggle("dark", nextTheme === "dark");
+  }
 
   async function handleLogout() {
     if (isLoggingOut) {
@@ -153,26 +254,44 @@ export function TenantDashboardShell({
     [role],
   );
 
+  const unitScopeOptions = availability.units
+    .filter((unit) =>
+      authenticatedRole === "super" || (loginContext?.unitScope ?? []).includes(unit.id),
+    )
+    .map((unit) => ({ label: unit.name, value: `Unit: ${unit.name}` }));
+  const audienceScopeOptions = availability.audiences
+    .filter((audience) => {
+      if (authenticatedRole === "super") return true;
+      if (authenticatedRole === "unit") return (loginContext?.unitScope ?? []).includes(audience.unitId);
+      return (loginContext?.audienceScope ?? []).includes(audience.id);
+    })
+    .map((audience) => ({ label: audience.name, value: `Audience: ${audience.name}` }));
+  const scopeOptions: SelectOption[] = role === "super"
+    ? [{ label: loginContext?.organizationName || "Organisation", value: loginContext?.organizationName || "Organisation" }]
+    : role === "unit"
+      ? unitScopeOptions
+      : audienceScopeOptions;
   const activeScope =
-    selectedScope || (config.scopeOptions?.[0] ?? "Organisation: SynkUp University");
+    scopeOptions.length === 0 && !availability.loading
+      ? "No assigned scope"
+      : selectedScope || scopeOptions[0]?.value || "Loading scope...";
 
   const compactScopeLabel = activeScope.includes(":")
     ? activeScope.split(":")[1]?.trim() || activeScope
     : activeScope;
 
-  const roleOptions: SelectOption[] = [
-    { label: "SUPER ADMIN", value: "super" },
-    { label: "UNIT ADMIN", value: "unit" },
-    { label: "AUDIENCE ADMIN", value: "audience" },
-  ];
-
-  const nextUnitDashboardId =
-    Number(searchParams.get("unitId") ?? initialUnitId ?? 1) || 1;
-
-  const scopeOptions: SelectOption[] = (config.scopeOptions ?? []).map((scope) => ({
-    label: scope.includes(":") ? scope.split(":")[1]?.trim() || scope : scope,
-    value: scope,
+  const roleOptions: SelectOption[] = getAccessibleDashboardRoles(
+    authenticatedRole ?? role,
+  ).map((accessibleRole) => ({
+    label: roleConfigs[accessibleRole].roleLabel,
+    value: accessibleRole,
   }));
+
+  const shouldShowUnitEmptyState = role === "unit" && !availability.loading && unitScopeOptions.length === 0;
+  const shouldShowAudienceEmptyState = role === "audience" && !availability.loading && audienceScopeOptions.length === 0;
+  const canCreateInEmptyState =
+    authenticatedRole === "super" ||
+    (authenticatedRole === "unit" && role === "audience" && unitScopeOptions.length > 0);
 
   return (
     <main
@@ -187,7 +306,7 @@ export function TenantDashboardShell({
           sidebarCollapsed={sidebarCollapsed}
           role={role}
           navMain={navMain}
-          navBottom={config.navBottom}
+          navBottom={navBottom}
           expandedGroups={expandedGroups}
           onToggleGroup={(label, hasChildren) => {
             if (sidebarCollapsed || !hasChildren) {
@@ -200,7 +319,7 @@ export function TenantDashboardShell({
             }));
           }}
           themePreference={themePreference}
-          onThemeChange={setThemePreference}
+          onThemeChange={handleThemeChange}
           mobileOpen={mobileSidebarOpen}
           onCloseMobile={() => setMobileSidebarOpen(false)}
         />
@@ -216,26 +335,20 @@ export function TenantDashboardShell({
             scopeOptions={scopeOptions}
             onRoleChange={(value) => {
               const nextRole = value as RoleKey;
-              setRole(nextRole);
-
-              const nextScope =
-                roleConfigs[nextRole].scopeOptions?.[0] ??
-                "Organisation: SynkUp University";
-              setSelectedScope(nextScope);
-
-              const params = new URLSearchParams();
-              params.set("role", nextRole);
-
-              if (nextRole === "unit") {
-                params.set("unitId", String(nextUnitDashboardId));
-              }
-
-              if (pathname.startsWith("/dashboard/units") || pathname.startsWith("/dashboard/audience") || pathname.startsWith("/dashboard/users")) {
-                router.push(`/dashboard?${params.toString()}`);
+              if (
+                !authenticatedRole ||
+                !getAccessibleDashboardRoles(authenticatedRole).includes(nextRole)
+              ) {
                 return;
               }
 
-              router.push(`/dashboard?${params.toString()}`);
+              setRole(nextRole);
+              setSelectedScope(
+                nextRole === "super"
+                  ? loginContext?.organizationName || "Organisation"
+                  : "Loading scope...",
+              );
+              router.push(`/dashboard?view=${nextRole}`);
             }}
             onScopeChange={setSelectedScope}
             onToggleSidebar={() => {
@@ -250,6 +363,7 @@ export function TenantDashboardShell({
               void handleLogout();
             }}
             isLoggingOut={isLoggingOut}
+            settingsHref={`/dashboard/settings${dashboardViewQuery}`}
             commandBar={config.commandBar}
           />
 
@@ -265,6 +379,27 @@ export function TenantDashboardShell({
               <AudienceWorkspace darkMode={darkMode} />
             ) : activeSection === "users" ? (
               <UsersWorkspace darkMode={darkMode} />
+            ) : activeSection === "attendance" ? (
+              <AttendanceWorkspace darkMode={darkMode} />
+            ) : activeSection === "reports" ? (
+              <ReportsWorkspace darkMode={darkMode} />
+            ) : activeSection === "subscription" ? (
+              <SubscriptionWorkspace darkMode={darkMode} expired={searchParams.get("state") === "expired"} />
+            ) : activeSection === "settings" ? (
+              <SettingsWorkspace darkMode={darkMode} organizationName={loginContext?.organizationName} />
+            ) : shouldShowUnitEmptyState || shouldShowAudienceEmptyState ? (
+              <InheritedDashboardEmptyState
+                darkMode={darkMode}
+                kind={shouldShowUnitEmptyState ? "unit" : "audience"}
+                canCreate={canCreateInEmptyState}
+                hasUnits={availability.units.length > 0}
+                onPrimaryAction={() => router.push(
+                  shouldShowUnitEmptyState || availability.units === 0
+                    ? "/dashboard/units"
+                    : "/dashboard/audience",
+                )}
+                onReturn={() => router.push("/dashboard")}
+              />
             ) : role === "super" ? (
               <SuperAdminDashboard
                 darkMode={darkMode}

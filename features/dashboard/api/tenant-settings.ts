@@ -1,0 +1,13 @@
+import { formatApiError } from "@/lib/api/errors";
+import { apiEndpoints } from "@/lib/api/endpoints";
+import { getValidOnboardingAccessToken } from "@/lib/auth/tenant-session";
+
+export type TenantSettings = { organization: { organization_id: number; name: string; primary_admin_email: string | null; subdomain: string; status: string }; current_user: { user_id: number; email: string; first_name: string; last_name: string; full_name: string }; access: { effective_role: string; roles: string[]; permissions: string[]; has_org_wide_role: boolean; unit_scope: number[]; audience_scope: number[] }; attendance_policy: { dynamic_qr_only: boolean; members_only_check_in: boolean; online_validation_only: boolean; configurable: false } };
+type ApiResult<T> = { success: true; data: T } | { success: false; message: string };
+async function request<T>(path: string, method: "GET" | "PATCH" | "POST", body?: unknown): Promise<ApiResult<T>> { try { const token = await getValidOnboardingAccessToken(); const headers = new Headers({ Accept: "application/json" }); if (token) headers.set("Authorization", `Bearer ${token}`); if (body !== undefined) headers.set("Content-Type", "application/json"); const response = await fetch(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), cache: "no-store" }); const payload = await response.json().catch(() => ({})); return response.ok ? { success: true, data: payload as T } : { success: false, message: formatApiError(payload, "Unable to complete this settings request.") }; } catch { return { success: false, message: "Unable to complete this settings request." }; } }
+export const getTenantSettings = () => request<TenantSettings>(apiEndpoints.tenantSettings, "GET");
+export const updateTenantOrganizationSettings = (payload: { name: string; primary_admin_email: string }) => request<TenantSettings["organization"]>(apiEndpoints.tenantSettingsOrganization, "PATCH", payload);
+export const requestTenantEmailChange = (payload: { new_email: string; current_password: string }) => request<{ message: string; pending_email: string; expires_at: string }>(apiEndpoints.tenantSettingsEmailChange, "POST", payload);
+export const confirmTenantEmailChange = (token: string) => request<{ message: string }>(`${apiEndpoints.tenantSettingsEmailChange}confirm/`, "POST", { token });
+export const changeTenantPassword = (payload: { current_password: string; new_password: string; new_password_confirm: string }) => request<{ message: string }>(apiEndpoints.tenantSettingsPasswordChange, "POST", payload);
+export const requestTenantPasswordReset = () => request<{ message: string }>(apiEndpoints.tenantSettingsPasswordReset, "POST", {});

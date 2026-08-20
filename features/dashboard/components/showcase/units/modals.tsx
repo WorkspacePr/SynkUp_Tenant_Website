@@ -519,7 +519,6 @@ export function CreateUnitModal({
   const [status, setStatus] = useState<CreateUnitStatus>("Active");
   const [assignedAdmins, setAssignedAdmins] = useState<number[]>([]);
   const [showDuplicateError, setShowDuplicateError] = useState(false);
-  const [showMissingAdminWarning, setShowMissingAdminWarning] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitAction, setSubmitAction] = useState<UnitActionState>(null);
@@ -545,7 +544,6 @@ export function CreateUnitModal({
     setStatus("Active");
     setAssignedAdmins([]);
     setShowDuplicateError(false);
-    setShowMissingAdminWarning(false);
     setSubmitError("");
     setSubmitting(false);
     setSubmitAction(null);
@@ -560,7 +558,6 @@ export function CreateUnitModal({
 
   async function handleSave(asDraft: boolean) {
     setShowDuplicateError(duplicateName);
-    setShowMissingAdminWarning(!asDraft && assignedAdmins.length === 0);
 
     if (duplicateName) {
       return;
@@ -786,7 +783,7 @@ export function CreateUnitModal({
             </div>
           </Field>
 
-          <Field label="Assign Unit Admins">
+          <Field label="Assign Unit Admins (Optional)">
             <div
               className={cn(
                 "rounded-2xl border p-4",
@@ -820,7 +817,6 @@ export function CreateUnitModal({
                           ? [...current, candidate.id]
                           : current.filter((id) => id !== candidate.id),
                       );
-                      setShowMissingAdminWarning(false);
                     }}
                     className={cn(
                       "border px-3 py-3",
@@ -837,8 +833,8 @@ export function CreateUnitModal({
               {adminOptions.length > 0 && adminOptionsNote ? (
                 <FieldWarning message={adminOptionsNote} />
               ) : null}
-              {showMissingAdminWarning ? (
-                <FieldWarning message="Missing Unit Admin warning: you can save as draft, but creating an active unit without an assigned admin is discouraged." />
+              {status === "Active" && assignedAdmins.length === 0 ? (
+                <FieldWarning message="You can create this active unit without an admin. It will show a critical 'No Unit Admin assigned' warning until you create a user in the unit and assign them as Unit Admin." />
               ) : null}
             </div>
           </Field>
@@ -863,7 +859,7 @@ export function CreateUnitModal({
           <SupportCard
             icon={<UserCog className="h-4 w-4" />}
             title="Admin assignment"
-            body="Role assignment is tracked, and initial admins can be attached at creation time."
+            body="Admin assignment is optional at creation. Add users to the unit first, then assign an active user as Unit Admin."
             darkMode={darkMode}
           />
           <SupportCard

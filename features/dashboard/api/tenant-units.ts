@@ -151,7 +151,7 @@ export type UnitAdminCandidate = {
   id: number;
   name: string;
   email: string;
-  source: "primary_admin";
+  source?: "tenant_user" | "primary_admin";
   is_primary_admin: boolean;
 };
 
@@ -569,6 +569,14 @@ export async function getUnitAdminCandidates(organizationId: number) {
   );
 
   const body = (await response.json()) as {
+    data?: Array<{
+      user_id?: number;
+      name?: string;
+      email?: string;
+      status?: string;
+      eligible_roles?: string[];
+      is_primary_admin?: boolean;
+    }>;
     results?: UnitAdminCandidate[];
     meta?: {
       note?: string | null;
@@ -588,11 +596,36 @@ export async function getUnitAdminCandidates(organizationId: number) {
     };
   }
 
+  const candidates = Array.isArray(body.data)
+    ? body.data
+        .filter(
+          (candidate) =>
+            typeof candidate.user_id === "number" &&
+            typeof candidate.name === "string" &&
+            typeof candidate.email === "string" &&
+            candidate.status === "active" &&
+            candidate.eligible_roles?.includes("Unit Admin"),
+        )
+        .map((candidate) => ({
+          id: candidate.user_id as number,
+          name: candidate.name as string,
+          email: candidate.email as string,
+          source: "tenant_user" as const,
+          is_primary_admin: Boolean(candidate.is_primary_admin),
+        }))
+    : Array.isArray(body.results)
+      ? body.results
+      : [];
+
   return {
     success: true as const,
     data: {
-      results: Array.isArray(body.results) ? body.results : [],
-      note: body.meta?.note ?? "",
+      results: candidates,
+      note:
+        body.meta?.note ??
+        (candidates.length === 0
+          ? "Create an active user in this unit, then return to assign them as Unit Admin."
+          : ""),
     },
   };
 }
