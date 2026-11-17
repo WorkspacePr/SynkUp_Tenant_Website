@@ -248,10 +248,17 @@ function createOverviewMetrics(summaryCards: TenantUnitOverviewSummaryCards): Ov
 export function UnitsWorkspace({
   darkMode,
   role,
+  accessRole,
+  allowedUnitIds,
   view,
   selectedUnitId,
 }: UnitsWorkspaceProps) {
   const router = useRouter();
+  const canCreateUnits = accessRole === "super";
+  const allowedUnitIdSet = useMemo(
+    () => accessRole === "super" ? null : new Set(allowedUnitIds ?? []),
+    [accessRole, allowedUnitIds],
+  );
   const [createUnitOpen, setCreateUnitOpen] = useState(false);
   const [units, setUnits] = useState<UnitSummary[]>([]);
   const [query, setQuery] = useState("");
@@ -321,8 +328,22 @@ export function UnitsWorkspace({
       return;
     }
 
-    setUnits(result.data.data.map(mapUnit));
-    setPagination(result.data.meta.pagination);
+    const visibleUnits = result.data.data
+      .filter((unit) => !allowedUnitIdSet || allowedUnitIdSet.has(unit.unit_id))
+      .map(mapUnit);
+    setUnits(visibleUnits);
+    setPagination(
+      allowedUnitIdSet
+        ? {
+            page: 1,
+            pageSize: visibleUnits.length,
+            total: visibleUnits.length,
+            totalPages: 1,
+            hasNext: false,
+            hasPrevious: false,
+          }
+        : result.data.meta.pagination,
+    );
     setPlanUsage(result.data.planUsage ?? null);
     setHasLoadedUnits(true);
   };
@@ -389,8 +410,15 @@ export function UnitsWorkspace({
         return;
       }
 
-      setOverviewUnits(result.data.data.featuredUnits.map(mapUnit));
-      setOverviewMetrics(createOverviewMetrics(result.data.data.summaryCards));
+      const visibleOverviewUnits = result.data.data.featuredUnits
+        .filter((unit) => !allowedUnitIdSet || allowedUnitIdSet.has(unit.unit_id))
+        .map(mapUnit);
+      setOverviewUnits(visibleOverviewUnits);
+      setOverviewMetrics(
+        allowedUnitIdSet
+          ? createMetrics(visibleOverviewUnits)
+          : createOverviewMetrics(result.data.data.summaryCards),
+      );
       setOverviewPlanUsage(result.data.planUsage ?? null);
       setOverviewLoading(false);
     };
@@ -466,6 +494,10 @@ export function UnitsWorkspace({
       return;
     }
 
+    if (allowedUnitIdSet && !allowedUnitIdSet.has(unitId)) {
+      return;
+    }
+
     let cancelled = false;
 
     const loadDetail = async () => {
@@ -507,7 +539,7 @@ export function UnitsWorkspace({
     return () => {
       cancelled = true;
     };
-  }, [selectedUnitId, units, view]);
+  }, [allowedUnitIdSet, selectedUnitId, units, view]);
 
   const primaryUnit =
     detailUnit ??
@@ -547,12 +579,13 @@ export function UnitsWorkspace({
           <UnitsOverview
             darkMode={darkMode}
             onOpenCreateUnit={() => setCreateUnitOpen(true)}
+            canCreateUnits={canCreateUnits}
             unitUsageText={overviewUnitUsageText}
             planLimitReached={overviewPlanLimitReached}
             gridUnits={overviewUnits}
             tableUnits={units}
-            loading={overviewLoading}
-            tableLoading={tableLoading || loading}
+            loading={overviewLoading || loading}
+            tableLoading={tableLoading}
             error={overviewError}
             tableError={error}
             query={query}
@@ -586,11 +619,12 @@ export function UnitsWorkspace({
           <UnitsList
             darkMode={darkMode}
             onOpenCreateUnit={() => setCreateUnitOpen(true)}
+            canCreateUnits={canCreateUnits}
             unitUsageText={unitUsageText}
             planLimitReached={planLimitReached}
             units={units}
             loading={loading}
-            tableLoading={tableLoading || loading}
+            tableLoading={tableLoading}
             error={error}
             query={query}
             onQueryChange={(value) => {
@@ -701,7 +735,7 @@ export function UnitsWorkspace({
         ) : null}
       </section>
 
-      <CreateUnitModal
+      {canCreateUnits ? <CreateUnitModal
         darkMode={darkMode}
         open={createUnitOpen}
         onClose={() => setCreateUnitOpen(false)}
@@ -720,7 +754,7 @@ export function UnitsWorkspace({
             "The new unit was created successfully.",
           );
         }}
-      />
+      /> : null}
       {toast ? (
         <DashboardToast
           tone={toast.tone}

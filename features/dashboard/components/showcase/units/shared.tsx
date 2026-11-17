@@ -1,5 +1,6 @@
 "use client";
 
+import { DataTable } from "@/components/ui/DataTable";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
@@ -8,6 +9,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  LoaderCircle,
   PlusCircle,
   Search,
 } from "lucide-react";
@@ -31,6 +33,26 @@ import type {
   UnitAlert,
   UnitLifecycleStatus,
 } from "./types";
+
+export function UnitsLoadingState({
+  darkMode,
+  label = "Loading units.",
+}: {
+  darkMode: boolean;
+  label?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex min-h-64 flex-col items-center justify-center gap-3",
+        darkMode ? "text-slate-400" : "text-slate-500",
+      )}
+    >
+      <LoaderCircle className="h-7 w-7 animate-spin text-primary" />
+      <span className="text-sm">{label}</span>
+    </div>
+  );
+}
 
 export function MetricGrid({ darkMode }: { darkMode: boolean }) {
   return (
@@ -220,7 +242,7 @@ export function UnitsTableSkeleton({
 }) {
   return (
     <div className="overflow-x-auto">
-      <table className="min-w-full text-left text-sm">
+      <DataTable darkMode={darkMode} className="min-w-full text-left text-sm">
         <thead
           className={cn(
             "text-[11px] font-bold uppercase tracking-[0.08em]",
@@ -249,43 +271,7 @@ export function UnitsTableSkeleton({
             </tr>
           ))}
         </tbody>
-      </table>
-    </div>
-  );
-}
-
-export function DashboardDataTable({
-  darkMode,
-  headers,
-  children,
-  minWidthClassName = "min-w-full",
-}: {
-  darkMode: boolean;
-  headers: string[];
-  children: ReactNode;
-  minWidthClassName?: string;
-}) {
-  return (
-    <div className="overflow-x-auto">
-      <table className={cn("w-full text-left text-sm", minWidthClassName)}>
-        <thead
-          className={cn(
-            "text-[11px] font-bold uppercase tracking-[0.08em]",
-            darkMode
-              ? "bg-slate-800 text-slate-300"
-              : "bg-[#eef2f6] text-slate-500",
-          )}
-        >
-          <tr>
-            {headers.map((header, index) => (
-              <th key={`${header}-${index}`} className="px-4 py-3">
-                {header}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>{children}</tbody>
-      </table>
+      </DataTable>
     </div>
   );
 }

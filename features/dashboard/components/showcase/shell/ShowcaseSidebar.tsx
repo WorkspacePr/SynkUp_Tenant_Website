@@ -20,6 +20,7 @@ type ShowcaseSidebarProps = {
   onThemeChange: (value: "light" | "dark") => void;
   mobileOpen: boolean;
   onCloseMobile: () => void;
+  navigationDisabled?: boolean;
 };
 
 export function ShowcaseSidebar({
@@ -34,6 +35,7 @@ export function ShowcaseSidebar({
   onThemeChange,
   mobileOpen,
   onCloseMobile,
+  navigationDisabled = false,
 }: ShowcaseSidebarProps) {
   const sidebarContent = (
     <div className="flex min-h-full flex-col px-5 py-6">
@@ -55,7 +57,9 @@ export function ShowcaseSidebar({
           </div>
         ) : null}
 
-        <nav className="space-y-1.5">
+        <nav
+          className={cn("space-y-1.5", navigationDisabled && "pointer-events-none opacity-45")}
+        >
           {navMain.map((item) => (
             <SidebarItem
               key={item.label}
@@ -93,7 +97,9 @@ export function ShowcaseSidebar({
           </div>
         ) : null}
 
-        <nav className="space-y-1.5">
+        <nav
+          className={cn("space-y-1.5", navigationDisabled && "pointer-events-none opacity-45")}
+        >
           {navBottom.map((item) => (
             <SidebarItem
               key={item.label}

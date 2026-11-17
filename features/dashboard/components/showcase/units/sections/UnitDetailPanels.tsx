@@ -1,5 +1,6 @@
 "use client";
 
+import { DataTable } from "@/components/ui/DataTable";
 import {
   ArrowRight,
   TriangleAlert,
@@ -10,6 +11,7 @@ import {
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { DataTablePanel } from "@/components/ui/DataTablePanel";
 import { cn } from "@/utils";
 import {
   AdminStatusPill,
@@ -215,12 +217,10 @@ export function AssignedAdminsSection({
   onAssignAdmin: () => void;
 }) {
   return (
-    <Card
+    <DataTablePanel
+      darkMode={darkMode}
       className={cn(
-        "mt-5 overflow-hidden rounded-[22px] border",
-        darkMode
-          ? "border-slate-800 bg-slate-900 text-white"
-          : "border-slate-100 bg-white",
+        "mt-5",
       )}
     >
       <div className="flex flex-wrap items-start justify-between gap-4 px-5 py-4">
@@ -276,7 +276,7 @@ export function AssignedAdminsSection({
         {assignedAdminsLoading ? (
           <UnitAdminsTableSkeleton darkMode={darkMode} />
         ) : (
-          <table className="min-w-full text-left text-sm">
+          <DataTable darkMode={darkMode} className="min-w-full text-left text-sm">
             <thead
               className={cn(
                 "text-[11px] font-bold uppercase tracking-[0.08em]",
@@ -346,7 +346,7 @@ export function AssignedAdminsSection({
                 ))
               )}
             </tbody>
-          </table>
+          </DataTable>
         )}
       </div>
 
@@ -356,7 +356,7 @@ export function AssignedAdminsSection({
         items={[1, 2, 3, "...", 8]}
         activePage={1}
       />
-    </Card>
+    </DataTablePanel>
   );
 }
 
@@ -386,13 +386,11 @@ export function AudiencesSection({
   onAudienceSegmentChange: (value: string) => void;
 }) {
   return (
-    <Card
+    <DataTablePanel
+      darkMode={darkMode}
       id="unit-audiences-section"
       className={cn(
-        "mt-5 overflow-hidden rounded-[22px] border",
-        darkMode
-          ? "border-slate-800 bg-slate-900 text-white"
-          : "border-slate-100 bg-white",
+        "mt-5",
       )}
     >
       <div className="px-5 py-4">
@@ -428,7 +426,7 @@ export function AudiencesSection({
       />
 
       <div className="overflow-x-auto">
-        <table className="min-w-full text-left text-sm">
+        <DataTable darkMode={darkMode} className="min-w-full text-left text-sm">
           <thead
             className={cn(
               "text-[11px] font-bold uppercase tracking-[0.08em]",
@@ -476,7 +474,7 @@ export function AudiencesSection({
               </tr>
             ))}
           </tbody>
-        </table>
+        </DataTable>
       </div>
 
       <PaginationControl
@@ -485,7 +483,7 @@ export function AudiencesSection({
         items={[1, 2, 3, "...", 29]}
         activePage={5}
       />
-    </Card>
+    </DataTablePanel>
   );
 }
 

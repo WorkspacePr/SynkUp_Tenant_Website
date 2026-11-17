@@ -6,12 +6,11 @@ import { Grid2X2, List } from "lucide-react";
 import { cn } from "@/utils";
 import {
   MetricGridInternal,
-  MetricGridSkeleton,
   PaginationControl,
   PlanUsageActions,
   TableFilterBar,
   UnitsEmptyState,
-  UnitsOverviewSkeleton,
+  UnitsLoadingState,
 } from "../shared";
 import type { OverviewMetric, UnitSummary } from "../types";
 import { InlineStateCard } from "./InlineStateCard";
@@ -22,6 +21,7 @@ import { UnitsPageHeader } from "./UnitsPageHeader";
 export function UnitsOverview({
   darkMode,
   onOpenCreateUnit,
+  canCreateUnits = true,
   unitUsageText,
   planLimitReached,
   gridUnits = [],
@@ -47,6 +47,7 @@ export function UnitsOverview({
 }: {
   darkMode: boolean;
   onOpenCreateUnit: () => void;
+  canCreateUnits?: boolean;
   unitUsageText: string;
   planLimitReached: boolean;
   gridUnits?: UnitSummary[];
@@ -109,7 +110,7 @@ export function UnitsOverview({
         darkMode={darkMode}
         title="Units"
         description="Manage your organisation's units and audiences"
-        actionSlot={
+        actionSlot={canCreateUnits ? (
           <PlanUsageActions
             darkMode={darkMode}
             unitUsageText={unitUsageText}
@@ -117,25 +118,25 @@ export function UnitsOverview({
             onCreateUnit={onOpenCreateUnit}
             loading={loading}
           />
-        }
+        ) : null}
       />
 
-      {loading ? (
-        <MetricGridSkeleton darkMode={darkMode} />
-      ) : (
+      {!loading ? (
         <MetricGridInternal darkMode={darkMode} metrics={metrics ?? []} />
-      )}
+      ) : null}
 
-      {error ? (
+      {loading ? (
+        <UnitsLoadingState darkMode={darkMode} />
+      ) : error ? (
         <InlineStateCard darkMode={darkMode} title="Unable to load units" body={error} />
-      ) : loading ? (
-        <UnitsOverviewSkeleton darkMode={darkMode} />
       ) : tableUnits.length === 0 ? (
         <UnitsEmptyState
           darkMode={darkMode}
           title="No units created yet"
-          body="Your organisation does not have any units yet. Create one to start assigning admins, grouping audiences, and tracking activity from the dashboard."
-          onAction={onOpenCreateUnit}
+          body={canCreateUnits
+            ? "Your organisation does not have any units yet. Create one to start assigning admins, grouping audiences, and tracking activity from the dashboard."
+            : "No unit is currently assigned to your account. Contact a Super Admin to request access."}
+          onAction={canCreateUnits ? onOpenCreateUnit : undefined}
         />
       ) : (
         <>

@@ -1,6 +1,7 @@
 "use client";
 
 import type { LucideIcon } from "lucide-react";
+import type { MetricCardData, SessionRow } from "@/features/dashboard/components/showcase";
 
 export type DashboardWidgetState =
   | "default"
@@ -36,6 +37,8 @@ export type AttentionItem = {
   description: string;
   time: string;
   actionLabel: string;
+  actionType?: string | null;
+  reference?: Record<string, string | number> | null;
 };
 
 export type AttendanceFilter =
@@ -89,11 +92,13 @@ export type SuperAdminDashboardData = {
   statusMessage: string;
   attentionSummary: string;
   primaryActionLabel: string;
-  metrics: OverviewMetric[];
+  metrics: MetricCardData[];
   healthStrip: HealthStrip;
   attentionItems: AttentionItem[];
-  attendanceOverview: Record<AttendanceFilter, AttendanceOverviewData>;
-  sessions: SessionItem[];
+  trendHeights: number[];
+  trendLabels: string[];
+  performanceBars: Array<{ label: string; value: number }>;
+  sessions: SessionRow[];
   activity: ActivityItem[];
   quickActions: QuickAction[];
 };

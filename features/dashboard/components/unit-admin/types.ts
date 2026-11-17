@@ -26,7 +26,8 @@ export type UnitHeaderAction = {
 export type UnitSessionItem = {
   id: string;
   audienceName: string;
-  audienceAdmin: string;
+  sessionName: string;
+  unitName: string;
   startTime: string;
   endTime: string;
   checkedIn: number;
@@ -71,7 +72,9 @@ export type UnitAdminDashboardData = {
   metrics: UnitOverviewMetric[];
   attentionItems: AttentionItem[];
   sessions: UnitSessionItem[];
-  attendanceViews: Record<UnitAttendanceFilter, UnitAttendanceOverview>;
+  trendHeights: number[];
+  trendLabels: string[];
+  performanceBars: Array<{ label: string; value: number }>;
   activity: ActivityItem[];
   quickActions: QuickAction[];
   widgetStates?: {

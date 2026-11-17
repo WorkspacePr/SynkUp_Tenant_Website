@@ -16,6 +16,16 @@ export const apiEndpoints = {
   refreshToken: "/api/auth/token/refresh/",
   tenantUsers: "/api/users/",
   tenantReports: "/api/reports/",
+  tenantAttendanceSessions: "/api/v1/sessions/",
+  tenantAttendanceOverview: "/api/v1/sessions/overview/",
+  tenantAttendanceSessionDetail: (sessionId: string) =>
+    `/api/v1/sessions/${encodeURIComponent(sessionId)}/`,
+  tenantAttendanceSessionAction: (sessionId: string, action: string) =>
+    `/api/v1/sessions/${encodeURIComponent(sessionId)}/${encodeURIComponent(action)}/`,
+  tenantAttendanceSessionQr: (sessionId: string) =>
+    `/api/v1/sessions/${encodeURIComponent(sessionId)}/qr/`,
+  tenantSuperAdminDashboard: "/api/v1/dashboard/super-admin/",
+  tenantUnitAdminDashboard: "/api/v1/dashboard/unit-admin/",
   tenantSettings: "/api/settings/",
   tenantSettingsOrganization: "/api/settings/organization/",
   tenantSettingsEmailChange: "/api/settings/account/email-change/",
@@ -29,6 +39,12 @@ export const apiEndpoints = {
   tenantSubscriptionPlanChange: "/api/subscription/plan-change/",
   tenantSubscriptionInvoices: "/api/subscription/invoices/",
   tenantReportDetail: (reportId: number) => `/api/reports/${reportId}/`,
+  tenantSessionAttendance: (sessionId: string) =>
+    `/api/v1/sessions/${encodeURIComponent(sessionId)}/attendance/`,
+  tenantSessionAttendanceSummary: (sessionId: string) =>
+    `/api/v1/sessions/${encodeURIComponent(sessionId)}/attendance/summary/`,
+  tenantSessionAttendanceExport: (sessionId: string) =>
+    `/api/v1/sessions/${encodeURIComponent(sessionId)}/attendance/export/`,
   tenantUserDetail: (userId: number) => `/api/users/${userId}/`,
   tenantUserActivate: (userId: number) => `/api/users/${userId}/activate/`,
   tenantUserDeactivate: (userId: number) => `/api/users/${userId}/deactivate/`,

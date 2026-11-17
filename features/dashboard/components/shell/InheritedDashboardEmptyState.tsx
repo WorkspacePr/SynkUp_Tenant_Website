@@ -14,14 +14,12 @@ export function InheritedDashboardEmptyState({
   canCreate,
   hasUnits,
   onPrimaryAction,
-  onReturn,
 }: {
   darkMode: boolean;
   kind: EmptyStateKind;
   canCreate: boolean;
   hasUnits: boolean;
   onPrimaryAction: () => void;
-  onReturn: () => void;
 }) {
   const isUnit = kind === "unit";
   const needsUnitFirst = !isUnit && !hasUnits;
@@ -69,9 +67,6 @@ export function InheritedDashboardEmptyState({
               {primaryLabel}
             </Button>
           ) : null}
-          <Button variant={canCreate ? "outline" : "primary"} className="min-h-11 rounded-xl px-5 py-3" onClick={onReturn}>
-            Return to dashboard
-          </Button>
         </div>
       </div>
     </Card>

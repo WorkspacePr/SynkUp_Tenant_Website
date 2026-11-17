@@ -1,39 +1,84 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   PerformanceCard,
-  RoleMetrics,
   TrendCard,
   roleConfigs,
 } from "@/features/dashboard/components/showcase";
+import type { UnitAdminDashboardResponse } from "@/features/dashboard/api/unit-admin-dashboard";
+import { getUnitAdminDashboard } from "@/features/dashboard/api/unit-admin-dashboard";
 import { AttentionPanel } from "@/features/dashboard/components/super-admin/AttentionPanel";
 import { DashboardSection } from "@/features/dashboard/components/super-admin/DashboardSection";
 import { QuickActions } from "@/features/dashboard/components/super-admin/QuickActions";
 import { RecentActivity } from "@/features/dashboard/components/super-admin/RecentActivity";
+import { renderWidgetState } from "@/features/dashboard/components/super-admin/DashboardStates";
 
-import { buildUnitAdminDashboardData } from "./adapters";
+import { mapUnitAdminDashboardData } from "./adapters";
 import { UnitAdminHeader } from "./UnitAdminHeader";
+import { UnitOverviewMetrics } from "./UnitOverviewMetrics";
 import { UnitSessionWorkspace } from "./UnitSessionWorkspace";
 
 type UnitAdminDashboardProps = {
   darkMode: boolean;
   activeScope: string;
+  unitId?: number;
   userName?: string;
 };
 
 function UnitAdminDashboardComponent({
   darkMode,
   activeScope,
-  userName = "John Doe",
+  unitId,
+  userName = "Admin",
 }: UnitAdminDashboardProps) {
   const config = roleConfigs.unit;
-  const data = buildUnitAdminDashboardData({
-    activeScope,
-    userName,
-  });
-  const chartHeights = [34, 58, 42, 71, 65, 35, 43];
+  const [response, setResponse] = useState<UnitAdminDashboardResponse | null>(null);
+  const [requestState, setRequestState] = useState<"loading" | "error" | "permission" | "default">("loading");
+  const [requestMessage, setRequestMessage] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
+  const retry = useCallback(() => setReloadKey((current) => current + 1), []);
+
+  useEffect(() => {
+    let active = true;
+    setResponse(null);
+    setRequestState("loading");
+
+    void getUnitAdminDashboard(unitId).then((result) => {
+      if (!active) return;
+      if (!result.success) {
+        setResponse(null);
+        setRequestMessage(result.message);
+        setRequestState(result.status === 401 || result.status === 403 ? "permission" : "error");
+        return;
+      }
+      setResponse(result.data);
+      setRequestMessage("");
+      setRequestState("default");
+    });
+
+    return () => { active = false; };
+  }, [reloadKey, unitId]);
+
+  const data = useMemo(
+    () => response ? mapUnitAdminDashboardData({ response, userName }) : null,
+    [response, userName],
+  );
+
+  if (!data) {
+    return (
+      <div className="space-y-6 py-4">
+        {renderWidgetState({
+          darkMode,
+          state: requestState === "default" ? "error" : requestState,
+          title: requestState === "loading" ? "Loading Unit Admin dashboard" : requestState === "permission" ? "Unit Admin access is required" : "Unable to load the dashboard",
+          description: requestState === "loading" ? `Preparing the latest metrics for ${activeScope}.` : requestMessage || "Try loading the dashboard again.",
+          onRetry: retry,
+        })}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 py-4">
@@ -48,7 +93,7 @@ function UnitAdminDashboardComponent({
       />
 
       <DashboardSection darkMode={darkMode}>
-        <RoleMetrics darkMode={darkMode} metrics={config.metrics} />
+        <UnitOverviewMetrics metrics={data.metrics} />
       </DashboardSection>
 
       <DashboardSection
@@ -57,11 +102,15 @@ function UnitAdminDashboardComponent({
         subtitle="Review attendance, user, and audience issues that need unit action."
         action={<button type="button" className="text-sm font-semibold text-primary">View all</button>}
       >
-        <AttentionPanel darkMode={darkMode} items={data.attentionItems} />
+        {data.attentionItems.length > 0 ? (
+          <AttentionPanel darkMode={darkMode} items={data.attentionItems} />
+        ) : (
+          renderWidgetState({ darkMode, state: "success", title: "Nothing needs attention", description: "There are no unit issues requiring action right now." })
+        )}
       </DashboardSection>
 
       <DashboardSection darkMode={darkMode}>
-        <UnitSessionWorkspace darkMode={darkMode} sessions={data.sessions} />
+        <UnitSessionWorkspace darkMode={darkMode} sessions={data.sessions} state={data.sessions.length > 0 ? "default" : "empty"} />
       </DashboardSection>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.3fr)_320px]">
@@ -69,19 +118,20 @@ function UnitAdminDashboardComponent({
           title={config.trendTitle}
           subtitle={config.trendSubtitle}
           darkMode={darkMode}
-          heights={chartHeights}
+          heights={data.trendHeights}
+          labels={data.trendLabels}
           role="unit"
         />
         <PerformanceCard
           title={config.performanceTitle}
           subtitle={config.performanceSubtitle}
-          bars={config.performanceBars}
+          bars={data.performanceBars}
           darkMode={darkMode}
         />
       </div>
 
       <DashboardSection darkMode={darkMode}>
-        <RecentActivity darkMode={darkMode} items={data.activity} />
+        <RecentActivity darkMode={darkMode} items={data.activity} state={data.activity.length > 0 ? "default" : "empty"} />
       </DashboardSection>
 
       <DashboardSection

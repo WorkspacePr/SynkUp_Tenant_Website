@@ -92,9 +92,9 @@ export function UnitSessionWorkspace({
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="text-base font-semibold">{session.audienceName}</div>
+                  <div className="text-base font-semibold">{session.sessionName}</div>
                   <div className={cn("mt-1 text-sm", darkMode ? "text-slate-300" : "text-slate-500")}>
-                    {session.startTime} - {session.endTime}
+                    {session.audienceName} · {session.startTime} - {session.endTime}
                   </div>
                 </div>
                 <span className={cn("rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em]", statusClass(session.status))}>
@@ -115,7 +115,7 @@ export function UnitSessionWorkspace({
               </div>
 
               <div className={cn("mt-4 text-sm", darkMode ? "text-slate-300" : "text-slate-500")}>
-                Audience Admin: <span className={cn("font-medium", darkMode ? "text-white" : "text-slate-800")}>{session.audienceAdmin}</span>
+                Unit: <span className={cn("font-medium", darkMode ? "text-white" : "text-slate-800")}>{session.unitName}</span>
               </div>
 
               <div className="mt-5 flex flex-wrap gap-2">

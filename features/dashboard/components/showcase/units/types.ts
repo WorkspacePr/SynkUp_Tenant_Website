@@ -77,6 +77,8 @@ export type AdminCandidate = {
 export type UnitsWorkspaceProps = {
   darkMode: boolean;
   role: "super" | "unit" | "audience";
+  accessRole: "super" | "unit" | "audience";
+  allowedUnitIds?: number[];
   view: UnitWorkspaceView;
   selectedUnitId?: number;
 };

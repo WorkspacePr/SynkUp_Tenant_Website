@@ -4,11 +4,11 @@ import { useMemo } from "react";
 import Link from "next/link";
 import { Eye } from "lucide-react";
 
-import { Card } from "@/components/ui/Card";
+import { DataTable } from "@/components/ui/DataTable";
+import { DataTablePanel } from "@/components/ui/DataTablePanel";
 import { cn } from "@/utils";
 import {
   AvatarSeed,
-  DashboardDataTable,
   PaginationControl,
   TableFilterBar,
   toTitleCase,
@@ -90,15 +90,9 @@ export function UnitTablePanel({
   ];
 
   return (
-    <Card
-      className={cn(
-        "mt-3 overflow-hidden rounded-[22px] border shadow-[0_20px_50px_-36px_rgba(15,23,42,0.35)]",
-        darkMode
-          ? "border-slate-800 bg-slate-900 text-white"
-          : "border-slate-100 bg-white",
-      )}
-    >
+    <DataTablePanel darkMode={darkMode} className="mt-3">
       {showControls ? (
+        <div className={cn("border-b px-4", darkMode ? "border-slate-800" : "border-slate-200")}>
         <TableFilterBar
           darkMode={darkMode}
           searchPlaceholder="Search unit or admin"
@@ -138,15 +132,15 @@ export function UnitTablePanel({
             onSegmentChange ? onSegmentChange(value) : undefined
           }
         />
+        </div>
       ) : null}
 
       {tableLoading ? (
           <UnitsTableSkeleton darkMode={darkMode} rows={5} columns={7} />
         ) : (
-          <DashboardDataTable
-            darkMode={darkMode}
-            headers={["Unit", "Unit Admin", "Total Audiences", "Total Users", "Active Sessions", "Status", "Actions"]}
-          >
+          <DataTable darkMode={darkMode} minWidthClassName="min-w-full">
+            <thead><tr><th>Unit</th><th>Unit Admin</th><th>Total Audiences</th><th>Total Users</th><th>Active Sessions</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody>
               {error ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-10 text-center text-sm text-[#dc2626]">
@@ -194,7 +188,8 @@ export function UnitTablePanel({
                   </tr>
                 ))
               )}
-          </DashboardDataTable>
+            </tbody>
+          </DataTable>
         )}
 
       <PaginationControl
@@ -208,6 +203,6 @@ export function UnitTablePanel({
         onNextPage={onNextPage}
         onPageChange={onPageChange}
       />
-    </Card>
+    </DataTablePanel>
   );
 }

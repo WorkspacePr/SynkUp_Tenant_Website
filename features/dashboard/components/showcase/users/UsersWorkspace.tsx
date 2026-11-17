@@ -27,6 +27,8 @@ import {
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { DataTable } from "@/components/ui/DataTable";
+import { DataTablePanel } from "@/components/ui/DataTablePanel";
 import {
   DashboardToast,
   type DashboardToastTone,
@@ -81,7 +83,6 @@ import { cn } from "@/utils";
 import { CompactSelect } from "../cards/ShowcaseParts";
 import {
   AvatarSeed,
-  DashboardDataTable,
   DetailMetricCard,
   InlineNotice,
   PaginationControl,
@@ -2054,19 +2055,10 @@ function ImportRowsTable({
   darkMode: boolean;
 }) {
   return (
-    <div
-      className={cn(
-        "mt-4 overflow-hidden rounded-[22px] border shadow-[0_20px_50px_-36px_rgba(15,23,42,0.35)]",
-        darkMode
-          ? "border-slate-800 bg-slate-900"
-          : "border-slate-100 bg-white",
-      )}
-    >
-      <DashboardDataTable
-        darkMode={darkMode}
-        headers={["Name", "ID", "Email", "Unit", "Audience", "Status"]}
-        minWidthClassName="min-w-[780px]"
-      >
+    <DataTablePanel darkMode={darkMode} className="mt-4">
+      <DataTable darkMode={darkMode} minWidthClassName="min-w-[780px]">
+        <thead><tr><th>Name</th><th>ID</th><th>Email</th><th>Unit</th><th>Audience</th><th>Status</th></tr></thead>
+        <tbody>
         {rows.map((row, index) => (
           <tr
             key={`${row.identity}-${index}`}
@@ -2109,8 +2101,9 @@ function ImportRowsTable({
             </td>
           </tr>
         ))}
-      </DashboardDataTable>
-    </div>
+        </tbody>
+      </DataTable>
+    </DataTablePanel>
   );
 }
 
@@ -3602,6 +3595,103 @@ export function UsersWorkspace({ darkMode }: { darkMode: boolean }) {
     );
   }
 
+  const usersTableFilters = (
+            <TableFilterBar
+              darkMode={darkMode}
+              searchPlaceholder="Search by user name, email, ID..."
+              searchValue={query}
+              onSearchChange={(value) => {
+                setQuery(value);
+                setPage(1);
+              }}
+              selects={[
+                {
+                  label: "Unit",
+                  value: unit,
+                  onChange: (value) => {
+                    setUnit(value);
+                    setPage(1);
+                  },
+                  options: [
+                    { label: "All Units", value: "all" },
+                    ...filterOptions.units.map(([id, name]) => ({
+                      label: name,
+                      value: String(id),
+                    })),
+                  ],
+                  className: "w-full sm:w-auto sm:min-w-44",
+                },
+                {
+                  label: "Audience",
+                  value: audience,
+                  onChange: (value) => {
+                    setAudience(value);
+                    setPage(1);
+                  },
+                  options: [
+                    { label: "All Audiences", value: "all" },
+                    ...filterOptions.audiences.map(([id, name]) => ({
+                      label: name,
+                      value: String(id),
+                    })),
+                  ],
+                  className: "w-full sm:w-auto sm:min-w-52",
+                },
+                {
+                  label: "Status",
+                  value: status,
+                  onChange: (value) => {
+                    setStatus(value);
+                    setPage(1);
+                  },
+                  options: [
+                    { label: "All Status", value: "all" },
+                    ...filterOptions.statuses.map((item) => ({
+                      label: item.toUpperCase(),
+                      value: item,
+                    })),
+                  ],
+                  className: "w-full sm:w-auto sm:min-w-36",
+                },
+                {
+                  label: "Access",
+                  value: accessStatus,
+                  onChange: (value) => {
+                    setAccessStatus(value);
+                    setPage(1);
+                  },
+                  options: [
+                    { label: "All Access", value: "all" },
+                    ...filterOptions.accessStatuses.map((item) => ({
+                      label: displayAccessStatus(item),
+                      value: item,
+                    })),
+                  ],
+                  className: "w-full sm:w-auto sm:min-w-44",
+                },
+                {
+                  label: "Role",
+                  value: role,
+                  onChange: (value) => {
+                    setRole(value);
+                    setPage(1);
+                  },
+                  options: [
+                    { label: "All Roles", value: "all" },
+                    ...filterOptions.roles.map((item) => ({
+                      label: displayUserRole(item),
+                      value: item,
+                    })),
+                  ],
+                  className: "w-full sm:w-auto sm:min-w-36",
+                },
+              ]}
+              segments={[]}
+              activeSegment=""
+              onSegmentChange={() => undefined}
+            />
+  );
+
   return (
     <section className="pb-10">
       <UnitsPageHeader
@@ -3779,102 +3869,7 @@ export function UsersWorkspace({ darkMode }: { darkMode: boolean }) {
             </div>
           </div>
 
-          <div className="mt-1">
-            <TableFilterBar
-              darkMode={darkMode}
-              searchPlaceholder="Search by user name, email, ID..."
-              searchValue={query}
-              onSearchChange={(value) => {
-                setQuery(value);
-                setPage(1);
-              }}
-              selects={[
-                {
-                  label: "Unit",
-                  value: unit,
-                  onChange: (value) => {
-                    setUnit(value);
-                    setPage(1);
-                  },
-                  options: [
-                    { label: "All Units", value: "all" },
-                    ...filterOptions.units.map(([id, name]) => ({
-                      label: name,
-                      value: String(id),
-                    })),
-                  ],
-                  className: "w-full sm:w-auto sm:min-w-44",
-                },
-                {
-                  label: "Audience",
-                  value: audience,
-                  onChange: (value) => {
-                    setAudience(value);
-                    setPage(1);
-                  },
-                  options: [
-                    { label: "All Audiences", value: "all" },
-                    ...filterOptions.audiences.map(([id, name]) => ({
-                      label: name,
-                      value: String(id),
-                    })),
-                  ],
-                  className: "w-full sm:w-auto sm:min-w-52",
-                },
-                {
-                  label: "Status",
-                  value: status,
-                  onChange: (value) => {
-                    setStatus(value);
-                    setPage(1);
-                  },
-                  options: [
-                    { label: "All Status", value: "all" },
-                    ...filterOptions.statuses.map((item) => ({
-                      label: item.toUpperCase(),
-                      value: item,
-                    })),
-                  ],
-                  className: "w-full sm:w-auto sm:min-w-36",
-                },
-                {
-                  label: "Access",
-                  value: accessStatus,
-                  onChange: (value) => {
-                    setAccessStatus(value);
-                    setPage(1);
-                  },
-                  options: [
-                    { label: "All Access", value: "all" },
-                    ...filterOptions.accessStatuses.map((item) => ({
-                      label: displayAccessStatus(item),
-                      value: item,
-                    })),
-                  ],
-                  className: "w-full sm:w-auto sm:min-w-44",
-                },
-                {
-                  label: "Role",
-                  value: role,
-                  onChange: (value) => {
-                    setRole(value);
-                    setPage(1);
-                  },
-                  options: [
-                    { label: "All Roles", value: "all" },
-                    ...filterOptions.roles.map((item) => ({
-                      label: displayUserRole(item),
-                      value: item,
-                    })),
-                  ],
-                  className: "w-full sm:w-auto sm:min-w-36",
-                },
-              ]}
-              segments={[]}
-              activeSegment=""
-              onSegmentChange={() => undefined}
-            />
-          </div>
+          {view !== "table" || filtered.length === 0 ? <div className="mt-1">{usersTableFilters}</div> : null}
           {selectedUserIds.size > 0 ? (
             <Card
               className={cn(
@@ -4176,29 +4171,11 @@ export function UsersWorkspace({ darkMode }: { darkMode: boolean }) {
           />
         </div>
       ) : view === "table" ? (
-        <Card
-          className={cn(
-            "mt-3 overflow-hidden rounded-[22px] border shadow-[0_20px_50px_-36px_rgba(15,23,42,0.35)]",
-            darkMode
-              ? "border-slate-800 bg-slate-900"
-              : "border-slate-100 bg-white",
-          )}
-        >
-          <DashboardDataTable
-            darkMode={darkMode}
-            headers={[
-              "Name",
-              "Email / ID",
-              "Unit",
-              "Audience",
-              "Role",
-              "Status",
-              "Access",
-              "Date Added",
-              "Actions",
-            ]}
-            minWidthClassName="min-w-[1160px]"
-          >
+        <DataTablePanel darkMode={darkMode} className="mt-3">
+          <div className={cn("border-b px-4", darkMode ? "border-slate-800" : "border-slate-200")}>{usersTableFilters}</div>
+          <DataTable darkMode={darkMode} minWidthClassName="min-w-[1160px]">
+            <thead><tr><th>Name</th><th>Email / ID</th><th>Unit</th><th>Audience</th><th>Role</th><th>Status</th><th>Access</th><th>Date Added</th><th>Actions</th></tr></thead>
+            <tbody>
             {filtered.map((user) => (
               <tr
                 key={user.id}
@@ -4260,7 +4237,8 @@ export function UsersWorkspace({ darkMode }: { darkMode: boolean }) {
                 </td>
               </tr>
             ))}
-          </DashboardDataTable>
+            </tbody>
+          </DataTable>
           <PaginationControl
             darkMode={darkMode}
             summary={`Showing ${firstVisible}-${lastVisible} of ${totalUsers} users`}
@@ -4276,7 +4254,7 @@ export function UsersWorkspace({ darkMode }: { darkMode: boolean }) {
             hasPreviousPage={page > 1}
             hasNextPage={page < totalPages}
           />
-        </Card>
+        </DataTablePanel>
       ) : (
         <>
           <div className="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-3">

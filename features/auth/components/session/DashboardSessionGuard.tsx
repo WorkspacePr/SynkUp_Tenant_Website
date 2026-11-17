@@ -13,6 +13,7 @@ import {
   getDashboardSection,
   getEffectiveDashboardRole,
   getAllowedDashboardPath,
+  getRequestedDashboardRole,
 } from "@/lib/auth/rbac";
 
 function buildCurrentRoute(pathname: string, searchParams: URLSearchParams) {
@@ -33,6 +34,10 @@ export function DashboardSessionGuard({
     let isMounted = true;
 
     const verifySession = async () => {
+      if (isMounted) {
+        setIsAuthorized(false);
+      }
+
       const currentRoute = buildCurrentRoute(pathname, searchParams);
       const accessToken = await getValidOnboardingAccessToken();
 
@@ -41,14 +46,20 @@ export function DashboardSessionGuard({
         return;
       }
 
-      const role = getEffectiveDashboardRole(readTenantLoginContext());
-      if (!role) {
+      const authenticatedRole = getEffectiveDashboardRole(readTenantLoginContext());
+      if (!authenticatedRole) {
         redirectToTenantSignIn(currentRoute);
         return;
       }
 
-      if (!canAccessDashboardSection(role, getDashboardSection(pathname))) {
-        window.location.replace(getAllowedDashboardPath(role));
+      const activeRole = getRequestedDashboardRole(
+        authenticatedRole,
+        searchParams.get("view"),
+      );
+
+      if (!canAccessDashboardSection(activeRole, getDashboardSection(pathname))) {
+        const allowedPath = getAllowedDashboardPath(activeRole);
+        window.location.replace(`${allowedPath}?view=${activeRole}`);
         return;
       }
 

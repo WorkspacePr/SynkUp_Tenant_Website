@@ -1,1417 +1,672 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import Link from "next/link";
+import { DataTable } from "@/components/ui/DataTable";
+import { DataTablePanel } from "@/components/ui/DataTablePanel";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
-  AlertCircle,
+  Archive,
   Building2,
-  Eye,
-  Factory,
-  Grid2X2,
+  Check,
+  ChevronDown,
+  CircleAlert,
+  LayoutGrid,
   List,
+  LoaderCircle,
+  Pencil,
   Plus,
+  RefreshCw,
   Search,
+  Users,
   X,
 } from "lucide-react";
 
 import { Card } from "@/components/ui/Card";
+import { DashboardToast, type DashboardToastTone } from "@/components/ui/DashboardToast";
+import { Select } from "@/components/ui/Select";
 import {
-  DashboardToast,
-  type DashboardToastTone,
-} from "@/components/ui/DashboardToast";
+  archiveOrganizationOnboardingAudience,
+  addOrganizationOnboardingAudienceMembers,
+  createOrganizationOnboardingAudience,
+  createOrganizationOnboardingAdminInvite,
+  getOrganizationOnboardingAdminInviteRoles,
+  getOrganizationOnboardingAdminInvites,
+  getOrganizationOnboardingAudienceMembers,
+  getOrganizationOnboardingAudiences,
+  importOrganizationOnboardingAudienceMembers,
+  updateOrganizationOnboardingAudience,
+} from "@/features/onboarding/api/tenant-onboarding";
+import { getTenantUnits, type TenantUnitListItem } from "@/features/dashboard/api/tenant-units";
+import { readTenantLoginContext } from "@/lib/auth/tenant-session";
+import type {
+  OrganizationOnboardingAdminInvite,
+  OrganizationOnboardingAdminInviteRole,
+  OrganizationOnboardingAudience,
+  OrganizationOnboardingAudienceMember,
+} from "@/types/onboarding";
 import { cn } from "@/utils";
-import {
-  AvatarSeed,
-  DashboardDataTable,
-  DetailMetricCard,
-  PaginationControl,
-  TableFilterBar,
-} from "../units/shared";
-import { UnitsPageHeader } from "../units/sections/UnitsPageHeader";
+import { AudienceDetailDrawer, type NewAudienceMember } from "./AudienceDetailDrawer";
 
-type AudienceStatus = "DRAFT" | "ACTIVE" | "INACTIVE" | "ARCHIVED";
-type Health = "healthy" | "warning" | "critical" | "neutral";
-type AudienceHealth = { state: Health; reasons: string[] };
-type AudienceHealthSignals = {
-  pendingInvitationThreshold: number;
-  staleActivity: boolean;
-  deliveryFailures: number;
-  syncFailures: number;
-  blockedAttendance: boolean;
-  unresolvedCriticalIssues: number;
-  insufficientData: boolean;
+type AudienceWorkspaceProps = {
+  darkMode: boolean;
+  role?: "super" | "unit" | "audience";
+  accessRole?: "super" | "unit" | "audience";
+  allowedUnitIds?: number[];
+  allowedAudienceIds?: number[];
 };
-type AudienceAdminStatus = "ACTIVE" | "PENDING" | "INACTIVE";
-type MembershipTab = "active" | "pending" | "inactive";
-type AudienceAdmin = {
-  id: string;
+type AudienceStatus = "Active" | "Inactive" | "Archived";
+type WorkspaceAudience = OrganizationOnboardingAudience;
+type ToastState = { tone: DashboardToastTone; title: string; description: string };
+type AudienceFormValues = {
   name: string;
-  email: string;
-  role: "Lead Audience Admin" | "Audience Admin" | "Read-Only Admin";
-  status: AudienceAdminStatus;
-  lastActivity: string;
-  unitScope: string;
-  isPrimary: boolean;
-};
-type AudienceTransferEvent = {
-  id: string;
-  userName: string;
-  fromUnit: string;
-  toUnit: string;
-  transferredAt: string;
-  actor: string;
-  invalidatedMemberships: string[];
-  reassignedMemberships: string[];
-};
-type Audience = {
-  id: number;
-  name: string;
-  unitId: number;
-  unit: string;
-  type: string;
-  identifier: string;
-  admins: AudienceAdmin[];
-  members: number | null;
-  pending: number | null;
-  invalidatedMemberships: number;
-  status: AudienceStatus;
-  healthSignals: AudienceHealthSignals;
-  transferEvents: AudienceTransferEvent[];
-};
-
-type ToastNotice = {
-  tone: DashboardToastTone;
-  title: string;
+  audience_type: string;
+  unit_id: string;
   description: string;
+  expected_member_count: string;
+  members: NewAudienceMember[];
+  admin_email: string;
 };
 
-const AUDIENCES: Audience[] = [
-  {
-    id: 1,
-    name: "Computer Science 101 Lecture",
-    unitId: 1,
-    unit: "Legacy Campus",
-    type: "Lecture",
-    identifier: "LEG-CSC-2026",
-    admins: [
-      {
-        id: "john-doe",
-        name: "Prof. John Doe",
-        email: "john.d@synkup.edu",
-        role: "Lead Audience Admin",
-        status: "ACTIVE",
-        lastActivity: "2 mins ago",
-        unitScope: "Legacy Campus",
-        isPrimary: true,
-      },
-      {
-        id: "mary-ogu",
-        name: "Mary Ogu",
-        email: "mary.ogu@synkup.edu",
-        role: "Audience Admin",
-        status: "ACTIVE",
-        lastActivity: "18 mins ago",
-        unitScope: "Legacy Campus",
-        isPrimary: false,
-      },
-    ],
-    members: 302,
-    pending: 12,
-    invalidatedMemberships: 3,
-    status: "ACTIVE",
-    healthSignals: { pendingInvitationThreshold: 100, staleActivity: false, deliveryFailures: 0, syncFailures: 0, blockedAttendance: false, unresolvedCriticalIssues: 0, insufficientData: false },
-    transferEvents: [
-      {
-        id: "transfer-001",
-        userName: "David Eromosele",
-        fromUnit: "Legacy Campus",
-        toUnit: "Heritage Campus",
-        transferredAt: "July 18, 2026",
-        actor: "Prof. John Doe",
-        invalidatedMemberships: ["Computer Science 101 Lecture"],
-        reassignedMemberships: ["Introduction to Anatomy"],
-      },
-      {
-        id: "transfer-002",
-        userName: "Esther Bello",
-        fromUnit: "Legacy Campus",
-        toUnit: "Heritage Campus",
-        transferredAt: "July 16, 2026",
-        actor: "Mary Ogu",
-        invalidatedMemberships: ["Computer Science 101 Lecture"],
-        reassignedMemberships: ["Constitutional Law Seminar"],
-      },
-    ],
-  },
-  {
-    id: 2,
-    name: "Mechanical Lab Session",
-    unitId: 1,
-    unit: "Legacy Campus",
-    type: "Laboratory",
-    identifier: "LEG-MEE-2026",
-    admins: [
-      {
-        id: "john-doe",
-        name: "Prof. John Doe",
-        email: "john.d@synkup.edu",
-        role: "Lead Audience Admin",
-        status: "ACTIVE",
-        lastActivity: "9 mins ago",
-        unitScope: "Legacy Campus",
-        isPrimary: true,
-      },
-      {
-        id: "ifeoma-akaonye",
-        name: "Mrs. Akaonye Ifeoma",
-        email: "ifeoma@synkup.edu",
-        role: "Read-Only Admin",
-        status: "PENDING",
-        lastActivity: "Invitation sent",
-        unitScope: "Legacy Campus",
-        isPrimary: false,
-      },
-    ],
-    members: 150,
-    pending: 0,
-    invalidatedMemberships: 1,
-    status: "ACTIVE",
-    healthSignals: { pendingInvitationThreshold: 50, staleActivity: false, deliveryFailures: 0, syncFailures: 1, blockedAttendance: false, unresolvedCriticalIssues: 0, insufficientData: false },
-    transferEvents: [
-      {
-        id: "transfer-003",
-        userName: "Samuel Adegboyega",
-        fromUnit: "Legacy Campus",
-        toUnit: "Heritage Campus",
-        transferredAt: "July 19, 2026",
-        actor: "Prof. John Doe",
-        invalidatedMemberships: ["Mechanical Lab Session"],
-        reassignedMemberships: ["Introduction to Anatomy"],
-      },
-    ],
-  },
-  {
-    id: 3,
-    name: "Constitutional Law Seminar",
-    unitId: 2,
-    unit: "Heritage Campus",
-    type: "Seminar",
-    identifier: "HER-LAW-2026",
-    admins: [],
-    members: null,
-    pending: null,
-    invalidatedMemberships: 0,
-    status: "DRAFT",
-    healthSignals: { pendingInvitationThreshold: 25, staleActivity: false, deliveryFailures: 0, syncFailures: 0, blockedAttendance: false, unresolvedCriticalIssues: 0, insufficientData: true },
-    transferEvents: [],
-  },
-  {
-    id: 4,
-    name: "Introduction to Anatomy",
-    unitId: 2,
-    unit: "Heritage Campus",
-    type: "Lecture",
-    identifier: "HER-ANA-2026",
-    admins: [
-      {
-        id: "joseph-momoh",
-        name: "Mr. Joseph Momoh",
-        email: "momoh@synkup.edu",
-        role: "Lead Audience Admin",
-        status: "ACTIVE",
-        lastActivity: "43 mins ago",
-        unitScope: "Heritage Campus",
-        isPrimary: true,
-      },
-      {
-        id: "theophilus-gregory",
-        name: "Dr. Theophilus Gregory",
-        email: "gregory@synkup.edu",
-        role: "Audience Admin",
-        status: "INACTIVE",
-        lastActivity: "3 days ago",
-        unitScope: "Heritage Campus",
-        isPrimary: false,
-      },
-    ],
-    members: 540,
-    pending: 105,
-    invalidatedMemberships: 0,
-    status: "ARCHIVED",
-    healthSignals: { pendingInvitationThreshold: 100, staleActivity: true, deliveryFailures: 0, syncFailures: 0, blockedAttendance: false, unresolvedCriticalIssues: 0, insufficientData: false },
-    transferEvents: [
-      {
-        id: "transfer-004",
-        userName: "David Eromosele",
-        fromUnit: "Legacy Campus",
-        toUnit: "Heritage Campus",
-        transferredAt: "July 18, 2026",
-        actor: "Prof. John Doe",
-        invalidatedMemberships: ["Computer Science 101 Lecture"],
-        reassignedMemberships: ["Introduction to Anatomy"],
-      },
-    ],
-  },
-  {
-    id: 5,
-    name: "CFI Service",
-    unitId: 1,
-    unit: "Legacy Campus",
-    type: "Service",
-    identifier: "LEG-CFI-2026",
-    admins: [
-      {
-        id: "john-doe",
-        name: "Prof. John Doe",
-        email: "john.d@synkup.edu",
-        role: "Lead Audience Admin",
-        status: "ACTIVE",
-        lastActivity: "Just now",
-        unitScope: "Legacy Campus",
-        isPrimary: true,
-      },
-      {
-        id: "mary-ogu",
-        name: "Mary Ogu",
-        email: "mary.ogu@synkup.edu",
-        role: "Audience Admin",
-        status: "ACTIVE",
-        lastActivity: "12 mins ago",
-        unitScope: "Legacy Campus",
-        isPrimary: false,
-      },
-      {
-        id: "ifeoma-akaonye",
-        name: "Mrs. Akaonye Ifeoma",
-        email: "ifeoma@synkup.edu",
-        role: "Read-Only Admin",
-        status: "ACTIVE",
-        lastActivity: "1 hour ago",
-        unitScope: "Legacy Campus",
-        isPrimary: false,
-      },
-    ],
-    members: 2405,
-    pending: 1142,
-    invalidatedMemberships: 5,
-    status: "ACTIVE",
-    healthSignals: { pendingInvitationThreshold: 500, staleActivity: false, deliveryFailures: 3, syncFailures: 0, blockedAttendance: false, unresolvedCriticalIssues: 0, insufficientData: false },
-    transferEvents: [
-      {
-        id: "transfer-005",
-        userName: "Ada Okafor",
-        fromUnit: "Legacy Campus",
-        toUnit: "Heritage Campus",
-        transferredAt: "July 20, 2026",
-        actor: "Mrs. Akaonye Ifeoma",
-        invalidatedMemberships: ["CFI Service"],
-        reassignedMemberships: ["Constitutional Law Seminar"],
-      },
-      {
-        id: "transfer-006",
-        userName: "Chigozie Hauwa",
-        fromUnit: "Legacy Campus",
-        toUnit: "Heritage Campus",
-        transferredAt: "July 17, 2026",
-        actor: "Mary Ogu",
-        invalidatedMemberships: ["CFI Service"],
-        reassignedMemberships: ["Introduction to Anatomy"],
-      },
-    ],
-  },
+const defaultForm: AudienceFormValues = {
+  name: "",
+  audience_type: "class",
+  unit_id: "",
+  description: "",
+  expected_member_count: "",
+  members: [],
+  admin_email: "",
+};
+const audienceTypeChoices = [
+  "class", "department", "team",
 ];
 
-function calculateAudienceHealth(audience: Audience): AudienceHealth {
-  if (audience.status === "ARCHIVED" || audience.status === "INACTIVE") {
-    return { state: "neutral", reasons: [`Audience is ${audience.status.toLowerCase()}.`] };
-  }
-  if (audience.status === "DRAFT") {
-    return {
-      state: "neutral",
-      reasons: [
-        "Audience is still a draft.",
-        ...(audience.admins.length === 0
-          ? ["Administrator assignment is pending before activation."]
-          : []),
-      ],
-    };
-  }
-  if (audience.healthSignals.insufficientData || audience.members === null) {
-    return { state: "neutral", reasons: ["There is insufficient operational data."] };
-  }
-
-  const criticalReasons = [
-    ...(audience.admins.length === 0 ? ["No administrator is assigned."] : []),
-    ...(audience.healthSignals.syncFailures > 0
-      ? [`${audience.healthSignals.syncFailures} synchronization failure(s) detected.`]
-      : []),
-    ...(audience.healthSignals.blockedAttendance ? ["Attendance processing is blocked."] : []),
-    ...(audience.healthSignals.unresolvedCriticalIssues > 0
-      ? [`${audience.healthSignals.unresolvedCriticalIssues} critical issue(s) remain unresolved.`]
-      : []),
-  ];
-  if (criticalReasons.length) return { state: "critical", reasons: criticalReasons };
-
-  const warningReasons = [
-    ...((audience.pending ?? 0) >= audience.healthSignals.pendingInvitationThreshold
-      ? [`${audience.pending ?? 0} pending invitations meet or exceed the configured threshold of ${audience.healthSignals.pendingInvitationThreshold}.`]
-      : []),
-    ...(audience.healthSignals.staleActivity ? ["Audience activity is stale."] : []),
-    ...(audience.healthSignals.deliveryFailures > 0
-      ? [`${audience.healthSignals.deliveryFailures} invitation delivery failure(s) detected.`]
-      : []),
-  ];
-  if (warningReasons.length) return { state: "warning", reasons: warningReasons };
-  if ((audience.members ?? 0) === 0) {
-    return { state: "neutral", reasons: ["No member activity is available yet."] };
-  }
-  return {
-    state: "healthy",
-    reasons: [
-      "Audience is active with administrator coverage and members present.",
-      "No synchronization, attendance, invitation, or critical issues were detected.",
-    ],
-  };
+function audienceStatus(audience: WorkspaceAudience): AudienceStatus {
+  if (audience.is_archived) return "Archived";
+  return audience.is_active ? "Active" : "Inactive";
 }
 
-function StatusPill({ status }: { status: AudienceStatus }) {
+function formatDate(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? "—"
+    : new Intl.DateTimeFormat("en", { day: "numeric", month: "short", year: "numeric" }).format(date);
+}
+
+function StatusBadge({ audience }: { audience: WorkspaceAudience }) {
+  const status = audienceStatus(audience);
   return (
-    <span
-      className={cn(
-        "rounded-full px-2.5 py-1 text-[10px] font-bold",
-        status === "ACTIVE"
-          ? "bg-[#dff6e8] text-[#16a34a]"
-          : status === "DRAFT"
-            ? "bg-amber-100 text-amber-700"
-            : "bg-[#e5e7eb] text-[#6b7280]",
-      )}
-    >
-      {status}
-    </span>
+    <span className={cn(
+      "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold",
+      status === "Active" ? "bg-emerald-50 text-emerald-700" :
+        status === "Inactive" ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600",
+    )}>{status}</span>
   );
 }
 
-function HealthDot({ health }: { health: Health }) {
-  const color = {
-    healthy: "bg-green-600",
-    warning: "bg-yellow-400",
-    critical: "bg-red-600",
-    neutral: "bg-slate-400",
-  }[health];
-  return (
-    <span
-      aria-label={`${health} health`}
-      className={cn(
-        "inline-flex h-7 w-12 items-center justify-center rounded-full bg-[#ecfbf5]",
-        color === "bg-red-600" && "bg-red-50",
-      )}
-    >
-      <span className={cn("h-3 w-3 rounded-full", color)} />
-    </span>
-  );
-}
-
-function EmptyAudience({ darkMode }: { darkMode: boolean }) {
-  return (
-    <Card
-      className={cn(
-        "mt-6 flex min-h-[430px] flex-col items-center justify-center rounded-[22px] border p-8 text-center",
-        darkMode
-          ? "border-slate-800 bg-slate-900"
-          : "border-slate-100 bg-white",
-      )}
-    >
-      <div className="flex h-24 w-24 items-center justify-center rounded-full bg-teal-50 ring-8 ring-teal-50/60">
-        <Factory className="h-12 w-12 text-primary" />
-      </div>
-      <h2 className="mt-8 text-3xl font-semibold tracking-tight text-primary">
-        No Audience Available
-      </h2>
-      <p className="mt-4 max-w-xl text-sm leading-6 text-slate-500">
-        Audiences are created and managed within individual units.
-        <br />
-        Once a <span className="font-bold text-primary">Unit Admin</span>{" "}
-        creates an audience, it will automatically appear here.
-      </p>
-      <div className="mt-7 flex items-center gap-3 text-sm">
-        <AlertCircle className="h-5 w-5" />
-        <span>Need help structuring your organization?</span>
-        <button className="font-bold text-primary underline">
-          View Setup guide
-        </button>
-      </div>
-    </Card>
-  );
-}
-
-function audienceCreatedDate(audience: Audience) {
-  if (audience.id > 1000000000) return "Just now";
-  return ["Sep. 12, 2025", "Sep. 12, 2025", "Sep. 20, 2025", "Oct. 1, 2025", "Aug. 5, 2025"][audience.id - 1] ?? "Jan. 10, 2024";
-}
-
-function CreateAudienceModal({
+function AudienceModal({
   darkMode,
+  units,
+  audience,
+  saving,
+  canAssignAdmin,
   onClose,
-  onCreate,
+  onSubmit,
 }: {
   darkMode: boolean;
+  units: TenantUnitListItem[];
+  audience: WorkspaceAudience | null;
+  saving: boolean;
+  canAssignAdmin: boolean;
   onClose: () => void;
-  onCreate: (audience: Audience) => void;
+  onSubmit: (values: AudienceFormValues) => void;
 }) {
-  const [name, setName] = useState("");
-  const [type, setType] = useState("Class");
-  const [adminName, setAdminName] = useState("Dr. Amina Sule");
+  const [values, setValues] = useState<AudienceFormValues>(() => audience ? {
+    name: audience.name,
+    audience_type: audience.audience_type || "class",
+    unit_id: String(audience.unit),
+    description: audience.description ?? "",
+    expected_member_count: audience.expected_member_count == null ? "" : String(audience.expected_member_count),
+    members: [],
+    admin_email: "",
+  } : { ...defaultForm, unit_id: units[0] ? String(units[0].unit_id) : "" });
+  const [draftMember, setDraftMember] = useState<NewAudienceMember>({ first_name: "", last_name: "", email: "", identifier: "" });
 
-  function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const trimmedName = name.trim();
-    if (!trimmedName) return;
-
-    onCreate({
-      id: Date.now(),
-      name: trimmedName,
-      unitId: 1,
-      unit: "Legacy Campus",
-      type,
-      identifier: `LEG-${trimmedName.replace(/[^a-z0-9]/gi, "").slice(0, 8).toUpperCase()}-${new Date().getFullYear()}`,
-      admins: adminName
-        ? [{ id: `admin-${Date.now()}`, name: adminName, email: "admin@synkup.edu", role: "Audience Admin", status: "ACTIVE", lastActivity: "Just now", unitScope: "Legacy Campus", isPrimary: true }]
-        : [],
-      members: 0,
-      pending: 0,
-      invalidatedMemberships: 0,
-      status: "ACTIVE",
-      healthSignals: { pendingInvitationThreshold: 50, staleActivity: false, deliveryFailures: 0, syncFailures: 0, blockedAttendance: false, unresolvedCriticalIssues: 0, insufficientData: false },
-      transferEvents: [],
-    });
-  }
+  const fieldClass = cn(
+    "mt-1.5 w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/15",
+    darkMode ? "border-slate-700 bg-slate-800 text-white" : "border-slate-200 bg-white text-slate-900",
+  );
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/45 p-4" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-4" onMouseDown={onClose}>
       <form
-        onSubmit={submit}
+        onSubmit={(event) => { event.preventDefault(); onSubmit(values); }}
         onMouseDown={(event) => event.stopPropagation()}
-        className={cn("w-full max-w-lg rounded-3xl border p-6 shadow-2xl", darkMode ? "border-slate-700 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-900")}
+        className={cn("max-h-[calc(100vh-2rem)] w-full max-w-xl overflow-y-auto rounded-3xl border p-6 shadow-2xl", darkMode ? "border-slate-700 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-900")}
       >
         <div className="flex items-start justify-between gap-4">
-          <div><h2 className="text-xl font-bold">Create Audience</h2><p className="mt-1 text-sm text-slate-500">Create an audience within Legacy Campus.</p></div>
-          <button type="button" onClick={onClose} aria-label="Close create audience" className="rounded-xl p-2 hover:bg-slate-100 dark:hover:bg-slate-800"><X className="h-5 w-5" /></button>
+          <div>
+            <h2 className="text-xl font-bold">{audience ? "Edit audience" : "Create audience"}</h2>
+            <p className="mt-1 text-sm text-slate-500">Set the audience details and the unit it belongs to.</p>
+          </div>
+          <button type="button" aria-label="Close" onClick={onClose} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"><X className="h-5 w-5" /></button>
         </div>
-        <label className="mt-6 block text-sm font-semibold">Audience name
-          <input autoFocus required value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. CSC 401" className={cn("mt-2 w-full rounded-xl border px-3 py-2.5 outline-none ring-primary focus:ring-2", darkMode ? "border-slate-700 bg-slate-800" : "border-slate-200 bg-white")} />
-        </label>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <label className="block text-sm font-semibold">Type
-            <select value={type} onChange={(event) => setType(event.target.value)} className={cn("mt-2 w-full rounded-xl border px-3 py-2.5", darkMode ? "border-slate-700 bg-slate-800" : "border-slate-200 bg-white")}>
-              <option>Class</option><option>Service</option><option>Meeting</option>
-            </select>
+
+        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          <label className="text-sm font-semibold sm:col-span-2">Audience name
+            <input autoFocus required maxLength={150} value={values.name} onChange={(event) => setValues({ ...values, name: event.target.value })} placeholder="e.g. Customer Support Team" className={fieldClass} />
           </label>
-          <label className="block text-sm font-semibold">Assigned admin
-            <input value={adminName} onChange={(event) => setAdminName(event.target.value)} className={cn("mt-2 w-full rounded-xl border px-3 py-2.5", darkMode ? "border-slate-700 bg-slate-800" : "border-slate-200 bg-white")} />
+          <label className="text-sm font-semibold">Unit
+            <Select
+              value={values.unit_id}
+              onChange={(unit_id) => setValues({ ...values, unit_id })}
+              options={units.map((unit) => ({ label: unit.name, value: String(unit.unit_id) }))}
+              placeholder="Select a unit"
+              className="mt-1.5"
+              buttonClassName="min-h-[42px] rounded-xl px-3.5 py-2.5 text-sm font-normal shadow-none"
+              variant="compact"
+              darkMode={darkMode}
+              aria-label="Unit"
+            />
           </label>
+          <label className="text-sm font-semibold">Audience type
+            <Select
+              value={values.audience_type}
+              onChange={(audience_type) => setValues({ ...values, audience_type })}
+              options={[...new Set([...audienceTypeChoices, ...(audience && !audienceTypeChoices.includes(audience.audience_type) ? [audience.audience_type] : [])])].map((type) => ({ label: type.replaceAll("_", " "), value: type }))}
+              className="mt-1.5"
+              buttonClassName="min-h-[42px] rounded-xl px-3.5 py-2.5 text-sm font-normal shadow-none capitalize"
+              variant="compact"
+              darkMode={darkMode}
+              aria-label="Audience type"
+            />
+          </label>
+          <label className="text-sm font-semibold">Expected members <span className="font-normal text-slate-400">(optional)</span>
+            <input type="number" min="0" value={values.expected_member_count} onChange={(event) => setValues({ ...values, expected_member_count: event.target.value })} placeholder="0" className={fieldClass} />
+          </label>
+          <label className="text-sm font-semibold sm:col-span-2">Description <span className="font-normal text-slate-400">(optional)</span>
+            <textarea rows={3} maxLength={1000} value={values.description} onChange={(event) => setValues({ ...values, description: event.target.value })} placeholder="What is this audience for?" className={cn(fieldClass, "resize-y")} />
+          </label>
+          {!audience ? (
+            <div className="sm:col-span-2">
+              <div className="flex items-center justify-between gap-3"><div><div className="text-sm font-semibold">Initial members <span className="font-normal text-slate-400">(optional)</span></div><p className="mt-1 text-xs text-slate-500">Add people now, or manage them later from the audience profile.</p></div><span className="text-xs font-semibold text-primary">{values.members.length} added</span></div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <input value={draftMember.first_name} onChange={(event) => setDraftMember({ ...draftMember, first_name: event.target.value })} placeholder="First name" className={fieldClass} />
+                <input value={draftMember.last_name} onChange={(event) => setDraftMember({ ...draftMember, last_name: event.target.value })} placeholder="Last name" className={fieldClass} />
+                <input type="email" value={draftMember.email} onChange={(event) => setDraftMember({ ...draftMember, email: event.target.value })} placeholder="Email address" className={fieldClass} />
+                <div className="flex gap-2"><input value={draftMember.identifier} onChange={(event) => setDraftMember({ ...draftMember, identifier: event.target.value })} placeholder="Member ID" className={fieldClass} /><button type="button" disabled={!draftMember.first_name.trim() || !draftMember.last_name.trim() || !draftMember.email.trim()} onClick={() => { setValues({ ...values, members: [...values.members, draftMember] }); setDraftMember({ first_name: "", last_name: "", email: "", identifier: "" }); }} className="mt-1.5 rounded-xl bg-teal-50 px-3 text-xs font-semibold text-primary disabled:opacity-40">Add</button></div>
+              </div>
+              {values.members.length > 0 ? <div className="mt-3 flex flex-wrap gap-2">{values.members.map((member, index) => <button key={`${member.email}-${index}`} type="button" onClick={() => setValues({ ...values, members: values.members.filter((_, memberIndex) => memberIndex !== index) })} className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs text-slate-700">{member.first_name} {member.last_name}<X className="h-3 w-3" /></button>)}</div> : null}
+            </div>
+          ) : null}
+          {!audience && canAssignAdmin ? (
+            <label className="text-sm font-semibold sm:col-span-2">Audience admin email <span className="font-normal text-slate-400">(optional)</span>
+              <input type="email" value={values.admin_email} onChange={(event) => setValues({ ...values, admin_email: event.target.value })} placeholder="admin@example.com" className={fieldClass} />
+              <span className="mt-1.5 block text-xs font-normal text-slate-500">They will receive an invitation to manage this audience.</span>
+            </label>
+          ) : null}
         </div>
-        <div className="mt-7 flex justify-end gap-3"><button type="button" onClick={onClose} className="rounded-xl px-4 py-2.5 text-sm font-semibold">Cancel</button><button type="submit" className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white"><Plus className="h-4 w-4" />Create Audience</button></div>
+
+        <div className="mt-7 flex justify-end gap-3">
+          <button type="button" onClick={onClose} className="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">Cancel</button>
+          <button type="submit" disabled={saving || units.length === 0} className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60">
+            {saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+            {saving ? "Saving…" : audience ? "Save changes" : "Create audience"}
+          </button>
+        </div>
       </form>
     </div>
   );
 }
 
-function AudienceDrawer({
-  audience,
+export function AudienceWorkspace({
   darkMode,
-  onClose,
-}: {
-  audience: Audience;
-  darkMode: boolean;
-  onClose: () => void;
-}) {
-  const [membershipTab, setMembershipTab] = useState<MembershipTab>("active");
-  const audienceHealth = calculateAudienceHealth(audience);
-  const transferEvents = audience.transferEvents;
-  const transferInvalidationCount = audience.invalidatedMemberships;
-  const activeMembers = [
-    {
-      id: "ENG/MEE/230011",
-      name: "Samuel Adegboyega",
-      joinedAt: "July 19, 2026",
-      lastActivity: "2 hours ago",
-    },
-    {
-      id: "ENG/CSC/230104",
-      name: "Iwinosa Elizabeth",
-      joinedAt: "July 18, 2026",
-      lastActivity: "Yesterday",
-    },
-    {
-      id: "ENG/EEE/230042",
-      name: "Chigozie Hauwa",
-      joinedAt: "July 16, 2026",
-      lastActivity: "2 days ago",
-    },
-  ];
-  const pendingInvitations = [
-    {
-      id: "invite-001",
-      recipient: "ada.okafor@synkup.edu",
-      identifier: "SCI/BCH/240031",
-      invitedAt: "July 20, 2026",
-      deliveryState: "DELIVERED",
-      expiresAt: "July 27, 2026",
-    },
-    {
-      id: "invite-002",
-      recipient: "LAW/240118",
-      identifier: "User ID invitation",
-      invitedAt: "July 18, 2026",
-      deliveryState: "BOUNCED",
-      expiresAt: "July 25, 2026",
-    },
-  ];
-  const inactiveMembers = [
-    {
-      id: "ENG/MEE/220019",
-      name: "David Eromosele",
-      inactiveAt: "July 12, 2026",
-      reason: "Account deactivated",
-      lastActivity: "July 10, 2026",
-    },
-    {
-      id: "SCI/MCB/220077",
-      name: "Esther Bello",
-      inactiveAt: "June 30, 2026",
-      reason: "Removed from parent unit",
-      lastActivity: "June 28, 2026",
-    },
-  ];
+  role = "super",
+  accessRole = "super",
+  allowedUnitIds = [],
+  allowedAudienceIds = [],
+}: AudienceWorkspaceProps) {
+  const [organizationId] = useState<number | null>(() => readTenantLoginContext()?.organizationId ?? null);
+  const [audiences, setAudiences] = useState<WorkspaceAudience[]>([]);
+  const [units, setUnits] = useState<TenantUnitListItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [view, setView] = useState<"table" | "grid">("table");
+  const [modalAudience, setModalAudience] = useState<WorkspaceAudience | null | undefined>(undefined);
+  const [saving, setSaving] = useState(false);
+  const [busyAudienceId, setBusyAudienceId] = useState<number | null>(null);
+  const [toast, setToast] = useState<ToastState | null>(null);
+  const [adminRoles, setAdminRoles] = useState<OrganizationOnboardingAdminInviteRole[]>([]);
+  const [adminInvites, setAdminInvites] = useState<OrganizationOnboardingAdminInvite[]>([]);
+  const [selectedAudience, setSelectedAudience] = useState<WorkspaceAudience | null>(null);
+  const [audienceMembers, setAudienceMembers] = useState<OrganizationOnboardingAudienceMember[]>([]);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailBusy, setDetailBusy] = useState(false);
+  const [detailError, setDetailError] = useState("");
+
+  const loadWorkspace = useCallback(async () => {
+    if (!organizationId) {
+      setLoading(false);
+      setError("Your organization could not be identified. Sign in again to manage audiences.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    const [audiencesResult, unitsResult] = await Promise.all([
+      getOrganizationOnboardingAudiences(organizationId),
+      getTenantUnits({ page: 1 }),
+    ]);
+    const visibleAudiences = audiencesResult.success
+      ? audiencesResult.data.results.filter((audience) => {
+          if (accessRole === "super") return true;
+          if (accessRole === "unit") return allowedUnitIds.includes(audience.unit);
+          return allowedAudienceIds.includes(audience.audience_id);
+        })
+      : [];
+    if (audiencesResult.success) setAudiences(visibleAudiences);
+    else setError(audiencesResult.message);
+    if (unitsResult.success) {
+      const visibleUnitIds = accessRole === "audience"
+        ? new Set(visibleAudiences.map((audience) => audience.unit))
+        : null;
+      setUnits(unitsResult.data.data.filter((unit) => {
+        if (accessRole === "super") return true;
+        if (accessRole === "unit") return allowedUnitIds.includes(unit.unit_id);
+        return visibleUnitIds?.has(unit.unit_id) ?? false;
+      }));
+    }
+    setLoading(false);
+  }, [accessRole, allowedAudienceIds, allowedUnitIds, organizationId]);
+
+  useEffect(() => {
+    if (!organizationId) return;
+    const timer = window.setTimeout(() => void loadWorkspace(), 0);
+    return () => window.clearTimeout(timer);
+  }, [loadWorkspace, organizationId]);
+
+  const loadAdminSupport = useCallback(async () => {
+    if (!organizationId || accessRole === "audience") return;
+    const [rolesResult, invitesResult] = await Promise.all([
+      getOrganizationOnboardingAdminInviteRoles(organizationId),
+      getOrganizationOnboardingAdminInvites(organizationId),
+    ]);
+    if (rolesResult.success) setAdminRoles(rolesResult.data);
+    if (invitesResult.success) setAdminInvites(invitesResult.data.results);
+  }, [accessRole, organizationId]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadAdminSupport(), 0);
+    return () => window.clearTimeout(timer);
+  }, [loadAdminSupport]);
+
+  const unitNames = useMemo(() => new Map(units.map((unit) => [unit.unit_id, unit.name])), [units]);
+  const audienceTypes = useMemo(() => [...new Set(audiences.map((audience) => audience.audience_type).filter(Boolean))].sort(), [audiences]);
+  const filtered = useMemo(() => audiences.filter((audience) => {
+    const term = query.trim().toLowerCase();
+    const matchesQuery = !term || [audience.name, audience.description ?? "", unitNames.get(audience.unit) ?? ""].some((value) => value.toLowerCase().includes(term));
+    const matchesStatus = statusFilter === "all" || audienceStatus(audience).toLowerCase() === statusFilter;
+    const matchesType = typeFilter === "all" || audience.audience_type === typeFilter;
+    return matchesQuery && matchesStatus && matchesType;
+  }), [audiences, query, statusFilter, typeFilter, unitNames]);
+
+  const activeCount = audiences.filter((audience) => audience.is_active && !audience.is_archived).length;
+  const archivedCount = audiences.filter((audience) => audience.is_archived).length;
+  const expectedMembers = audiences.reduce((total, audience) => total + (audience.expected_member_count ?? 0), 0);
+
+  async function saveAudience(values: AudienceFormValues) {
+    if (!organizationId) return;
+    if (accessRole === "audience" || (accessRole === "unit" && !allowedUnitIds.includes(Number(values.unit_id)))) {
+      setToast({ tone: "error", title: "Access denied", description: "You cannot manage an audience outside your assigned scope." });
+      return;
+    }
+    setSaving(true);
+    const payload = {
+      name: values.name.trim(),
+      audience_type: values.audience_type,
+      unit_id: Number(values.unit_id),
+      description: values.description.trim() || null,
+      expected_member_count: values.expected_member_count === "" ? null : Number(values.expected_member_count),
+    };
+    const result = modalAudience
+      ? await updateOrganizationOnboardingAudience(organizationId, modalAudience.audience_id, payload)
+      : await createOrganizationOnboardingAudience(organizationId, payload);
+    if (!result.success) {
+      setSaving(false);
+      setToast({ tone: "error", title: "Could not save audience", description: result.message });
+      return;
+    }
+    const createdAudience = result.data;
+    const setupErrors: string[] = [];
+    if (!modalAudience && values.members.length > 0) {
+      const membersResult = await addOrganizationOnboardingAudienceMembers(organizationId, createdAudience.audience_id, {
+        members: values.members.map((member) => ({
+          first_name: member.first_name.trim(),
+          last_name: member.last_name.trim(),
+          email: member.email.trim(),
+          identifier: member.identifier.trim() || undefined,
+          identifier_type: member.identifier.trim() ? "member_id" : undefined,
+        })),
+      });
+      if (!membersResult.success) setupErrors.push(membersResult.message);
+    }
+    if (!modalAudience && values.admin_email.trim()) {
+      const audienceAdminRole = adminRoles.find((role) => role.name.toLowerCase().replaceAll("_", " ").includes("audience admin"));
+      if (!audienceAdminRole) {
+        setupErrors.push("The Audience Admin role is not available for invitations.");
+      } else {
+        const inviteResult = await createOrganizationOnboardingAdminInvite(organizationId, {
+          invited_email: values.admin_email.trim(),
+          invited_role_id: audienceAdminRole.role_id,
+          invited_unit_id: createdAudience.unit,
+          invited_audience_id: createdAudience.audience_id,
+        });
+        if (!inviteResult.success) setupErrors.push(inviteResult.message);
+      }
+    }
+    setSaving(false);
+    setModalAudience(undefined);
+    setToast({ tone: setupErrors.length > 0 ? "warning" : "success", title: modalAudience ? "Audience updated" : "Audience created", description: setupErrors.length > 0 ? `${createdAudience.name} was saved, but some setup could not be completed: ${setupErrors.join(" ")}` : `${createdAudience.name} and its initial access have been saved.` });
+    await loadWorkspace();
+    await loadAdminSupport();
+  }
+
+  const loadAudienceMembers = useCallback(async (audience: WorkspaceAudience) => {
+    if (!organizationId) return;
+    setDetailLoading(true);
+    setDetailError("");
+    const result = await getOrganizationOnboardingAudienceMembers(organizationId, audience.audience_id);
+    if (result.success) setAudienceMembers(result.data.results);
+    else { setAudienceMembers([]); setDetailError(result.message); }
+    setDetailLoading(false);
+  }, [organizationId]);
+
+  function openAudience(audience: WorkspaceAudience) {
+    setSelectedAudience(audience);
+    setAudienceMembers([]);
+    void loadAudienceMembers(audience);
+  }
+
+  async function addAudienceMember(member: NewAudienceMember) {
+    if (!organizationId || !selectedAudience) return false;
+    setDetailBusy(true);
+    const result = await addOrganizationOnboardingAudienceMembers(organizationId, selectedAudience.audience_id, { members: [{ ...member, identifier: member.identifier.trim() || undefined, identifier_type: member.identifier.trim() ? "member_id" : undefined }] });
+    setDetailBusy(false);
+    if (!result.success) { setToast({ tone: "error", title: "Could not add member", description: result.message }); return false; }
+    setToast({ tone: "success", title: "Member added", description: `${member.first_name} ${member.last_name} was added to ${selectedAudience.name}.` });
+    await loadAudienceMembers(selectedAudience);
+    return true;
+  }
+
+  async function importAudienceMembers(file: File) {
+    if (!organizationId || !selectedAudience) return false;
+    setDetailBusy(true);
+    const result = await importOrganizationOnboardingAudienceMembers(organizationId, selectedAudience.audience_id, file);
+    setDetailBusy(false);
+    if (!result.success) { setToast({ tone: "error", title: "Could not import members", description: result.message }); return false; }
+    setToast({ tone: "success", title: "Members imported", description: `${result.data.added_to_audience ?? 0} member(s) were added to ${selectedAudience.name}.` });
+    await loadAudienceMembers(selectedAudience);
+    return true;
+  }
+
+  async function inviteAudienceAdmin(email: string) {
+    if (!organizationId || !selectedAudience) return false;
+    const audienceAdminRole = adminRoles.find((role) => role.name.toLowerCase().replaceAll("_", " ").includes("audience admin"));
+    if (!audienceAdminRole) { setToast({ tone: "error", title: "Role unavailable", description: "The backend did not return an Audience Admin invite role." }); return false; }
+    setDetailBusy(true);
+    const result = await createOrganizationOnboardingAdminInvite(organizationId, { invited_email: email, invited_role_id: audienceAdminRole.role_id, invited_unit_id: selectedAudience.unit, invited_audience_id: selectedAudience.audience_id });
+    setDetailBusy(false);
+    if (!result.success) { setToast({ tone: "error", title: "Could not assign admin", description: result.message }); return false; }
+    setToast({ tone: "success", title: "Admin invited", description: `${email} was invited to manage ${selectedAudience.name}.` });
+    await loadAdminSupport();
+    return true;
+  }
+
+  async function archiveAudience(audience: WorkspaceAudience) {
+    if (!organizationId || !window.confirm(`Archive “${audience.name}”?`)) return;
+    const canManageAudience =
+      accessRole === "super" ||
+      (accessRole === "unit" && allowedUnitIds.includes(audience.unit)) ||
+      (accessRole === "audience" && allowedAudienceIds.includes(audience.audience_id));
+    if (!canManageAudience) {
+      setToast({ tone: "error", title: "Access denied", description: "You cannot manage an audience outside your assigned scope." });
+      return;
+    }
+    setBusyAudienceId(audience.audience_id);
+    const result = await archiveOrganizationOnboardingAudience(organizationId, audience.audience_id);
+    setBusyAudienceId(null);
+    if (!result.success) {
+      setToast({ tone: "error", title: "Could not archive audience", description: result.message });
+      return;
+    }
+    setToast({ tone: "success", title: "Audience archived", description: `${audience.name} was archived.` });
+    if (selectedAudience?.audience_id === audience.audience_id) setSelectedAudience(null);
+    await loadWorkspace();
+  }
+
+  const muted = darkMode ? "text-slate-400" : "text-slate-500";
+  const border = darkMode ? "border-slate-800" : "border-slate-200";
+  const surface = darkMode ? "bg-slate-900 text-slate-100" : "bg-white text-slate-900";
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/45" onMouseDown={onClose}>
-      <aside
-        className={cn(
-          "scrollbar-subtle ml-auto h-full w-full max-w-[680px] overflow-y-auto border-l p-6 shadow-2xl",
-          darkMode
-            ? "border-slate-700 bg-slate-900 text-white"
-            : "border-teal-200 bg-[#ecfaef] text-slate-950",
-        )}
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-bold">{audience.name}</h2>
-            <div className="mt-3 flex items-center gap-3">
-              <StatusPill status={audience.status} />
-              <span className="text-sm font-semibold text-slate-500">
-                {audience.unit.toUpperCase()}
-              </span>
-            </div>
-            <div className="mt-3 text-sm italic text-slate-500">
-              {audience.identifier}
-            </div>
-          </div>
-          <button
-            aria-label="Close audience details"
-            onClick={onClose}
-            className="rounded-xl p-2 hover:bg-black/5"
-          >
-            <X className="h-5 w-5" />
-          </button>
+    <section className="pb-10">
+      <div className="flex flex-wrap items-start justify-between gap-4 py-5">
+        <div>
+          <p className={cn("mb-2 text-xs font-semibold uppercase tracking-[0.16em]", muted)}>{role === "super" ? "Organisation-wide" : "Workspace"} management</p>
+          <h1 className={cn("text-3xl font-semibold tracking-[-0.04em] sm:text-4xl", darkMode ? "text-white" : "text-slate-950")}>Audiences</h1>
+          <p className={cn("mt-2 max-w-2xl text-sm", muted)}>Create and manage the groups that organize your members across units.</p>
         </div>
-        <section
-          className={cn(
-            "mt-6 rounded-2xl border p-4",
-            audienceHealth.state === "healthy" && "border-green-200 bg-green-50/70",
-            audienceHealth.state === "warning" && "border-amber-300 bg-amber-50/70",
-            audienceHealth.state === "critical" && "border-red-300 bg-red-50/70",
-            audienceHealth.state === "neutral" &&
-              (darkMode ? "border-slate-700 bg-slate-800" : "border-slate-300 bg-slate-100"),
-          )}
-        >
-          <div className="flex items-center justify-between gap-3">
-            <h3 className="text-sm font-bold">AUDIENCE HEALTH</h3>
-            <div className="flex items-center gap-2 text-xs font-bold uppercase">
-              <HealthDot health={audienceHealth.state} />
-              {audienceHealth.state}
-            </div>
-          </div>
-          <ul className="mt-3 space-y-2 text-sm">
-            {audienceHealth.reasons.map((reason) => (
-              <li key={reason} className="flex gap-2">
-                <span aria-hidden="true">•</span>
-                <span>{reason}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-        <section className="mt-8">
-          <div className="flex justify-between text-sm font-bold">
-            <h3>AUDIENCE ADMIN(S)</h3>
-            <span>
-              {audience.admins.length} {audience.admins.length === 1 ? "Administrator" : "Administrators"}
-            </span>
-          </div>
-          <div className="mt-3 space-y-3">
-            {audience.admins.length ? (
-              audience.admins.map((admin) => (
-                <Card
-                  key={admin.id}
-                  className={cn(
-                    "rounded-2xl border p-4",
-                    darkMode
-                      ? "border-slate-700 bg-slate-800"
-                      : "border-teal-200 bg-white/50",
-                  )}
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <AvatarSeed seed={admin.name} />
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <div className="font-bold">{admin.name}</div>
-                          {admin.isPrimary ? (
-                            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[9px] font-bold text-primary">
-                              PRIMARY
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className="truncate text-xs text-slate-500">
-                          {admin.email}
-                        </div>
-                      </div>
-                    </div>
-                    <span
-                      className={cn(
-                        "rounded-full px-2.5 py-1 text-[9px] font-bold",
-                        admin.status === "ACTIVE"
-                          ? "bg-green-100 text-green-700"
-                          : admin.status === "PENDING"
-                            ? "bg-amber-100 text-amber-700"
-                            : "bg-slate-200 text-slate-600",
-                      )}
-                    >
-                      {admin.status}
-                    </span>
-                  </div>
-                  <dl className="mt-4 grid gap-3 text-xs sm:grid-cols-3">
-                    <div>
-                      <dt className="text-slate-500">Access level</dt>
-                      <dd className="mt-1 font-semibold">{admin.role}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-slate-500">Unit scope</dt>
-                      <dd className="mt-1 font-semibold">{admin.unitScope}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-slate-500">Last activity</dt>
-                      <dd className="mt-1 font-semibold">{admin.lastActivity}</dd>
-                    </div>
-                  </dl>
-                </Card>
-              ))
-            ) : (
-              <Card
-                className={cn(
-                  "rounded-2xl border p-4",
-                  darkMode
-                    ? "border-slate-700 bg-slate-800"
-                    : "border-teal-200 bg-white/50",
-                )}
-              >
-                <div className="font-bold">Draft awaiting administrator assignment</div>
-                <div className="mt-1 text-xs text-slate-500">
-                  This audience cannot be activated until a Unit Admin assigns at
-                  least one Audience Admin.
-                </div>
-              </Card>
-            )}
-          </div>
-          <Link
-            href={`/dashboard/units/${audience.unitId}`}
-            className="mt-4 inline-flex text-xs font-bold text-primary hover:underline"
-          >
-            VIEW ALL ADMINISTRATORS
-          </Link>
-        </section>
-        <section className="mt-7">
-          <h3 className="text-sm font-bold">AUDIENCE METADATA</h3>
-          <Card
-            className={cn(
-              "mt-3 grid grid-cols-2 gap-6 rounded-2xl border p-5",
-              darkMode
-                ? "border-slate-700 bg-slate-800"
-                : "border-slate-200 bg-white",
-            )}
-          >
-            <div>
-              <div className="text-sm text-slate-500">Created By:</div>
-              <b className="mt-2 block">SYSTEM ADMIN</b>
-            </div>
-            <div>
-              <div className="text-sm text-slate-500">Date Created:</div>
-              <b className="mt-2 block">March 21, 2026</b>
-            </div>
-            <div>
-              <div className="text-sm text-slate-500">Last Modified:</div>
-              <b className="mt-2 block">July 21, 2026</b>
-            </div>
-            <div>
-              <div className="text-sm text-slate-500">Members</div>
-              <b className="mt-2 block">{audience.members ?? 0}</b>
-              {transferInvalidationCount > 0 ? (
-                <div className="mt-2 text-xs text-slate-500">
-                  Count excludes {transferInvalidationCount} membership
-                  {transferInvalidationCount === 1 ? "" : "s"} invalidated after unit transfer.
-                </div>
-              ) : null}
-            </div>
+        {accessRole !== "audience" ? (
+          <button onClick={() => setModalAudience(null)} disabled={units.length === 0} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50">
+            <Plus className="h-4 w-4" /> Create audience
+          </button>
+        ) : null}
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {[
+          { label: "Total audiences", value: audiences.length, icon: Users },
+          { label: "Active audiences", value: activeCount, icon: Check },
+          { label: "Expected members", value: expectedMembers.toLocaleString(), icon: Building2 },
+          { label: "Archived", value: archivedCount, icon: Archive },
+        ].map(({ label, value, icon: Icon }) => (
+          <Card key={label} className={cn("rounded-2xl border p-5", surface, border)}>
+            <div className="flex items-center justify-between"><span className={cn("text-sm font-medium", muted)}>{label}</span><span className="grid h-9 w-9 place-items-center rounded-xl bg-teal-50 text-primary"><Icon className="h-4 w-4" /></span></div>
+            <div className="mt-3 text-3xl font-semibold tracking-tight">{value}</div>
           </Card>
-        </section>
-        <section className="mt-7">
-          <h3 className="text-sm font-bold">AUDIENCE STATISTICS</h3>
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            {[
-              ["ACTIVE MEMBERS", audience.members ?? 0],
-              ["PENDING INVITES", audience.pending ?? 0],
-              ["INVALIDATED AFTER TRANSFER", transferInvalidationCount],
-              ["SESSIONS HELD", 17],
-            ].map(([label, value]) => (
-              <Card
-                key={label}
-                className={cn(
-                  "rounded-2xl border p-4",
-                  darkMode
-                    ? "border-slate-700 bg-slate-800"
-                    : "border-slate-200 bg-white",
-                )}
-              >
-                <div className="text-xs font-semibold text-slate-500">
-                  {label}
-                </div>
-                <div className="mt-2 text-2xl font-bold">{value}</div>
-              </Card>
-            ))}
+        ))}
+      </div>
+
+      <DataTablePanel darkMode={darkMode} className="mt-6">
+        <div className={cn("flex flex-col gap-3 border-b p-4 lg:flex-row lg:items-center lg:justify-between", border)}>
+          <div className="relative min-w-0 flex-1 lg:max-w-sm">
+            <Search className={cn("absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2", muted)} />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search audiences or units" className={cn("h-10 w-full rounded-xl border bg-transparent pl-9 pr-3 text-sm outline-none focus:border-teal-500", border)} />
           </div>
-          {transferInvalidationCount > 0 ? (
-            <Card
-              className={cn(
-                "mt-3 rounded-2xl border px-4 py-4 text-sm",
-                darkMode
-                  ? "border-amber-700/40 bg-amber-950/20 text-amber-100"
-                  : "border-amber-200 bg-amber-50 text-amber-900",
-              )}
-            >
-              User transfers update the source unit assignment, invalidate old audience memberships, and keep only memberships that match the user&apos;s current unit.
-            </Card>
-          ) : null}
-        </section>
-        <section className="mt-7">
-          <h3 className="text-sm font-bold">AUDIENCE MEMBERS</h3>
-          <div
-            className={cn(
-              "mt-3 grid grid-cols-3 rounded-xl border p-1",
-              darkMode ? "border-slate-700 bg-slate-800" : "border-slate-300 bg-white/50",
-            )}
-          >
-            {(
-              [
-                ["active", "Active", audience.members ?? 0],
-                ["pending", "Pending", audience.pending ?? 0],
-                ["inactive", "Invalidated", transferInvalidationCount],
-              ] as const
-            ).map(([value, label, count]) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setMembershipTab(value)}
-                className={cn(
-                  "rounded-lg px-2 py-2 text-xs font-bold transition-colors",
-                  membershipTab === value
-                    ? "bg-primary text-white"
-                    : "text-slate-500 hover:bg-black/5",
-                )}
-              >
-                {label} ({count})
-              </button>
-            ))}
-          </div>
-          <div className="mt-3 flex rounded-xl border border-slate-400 px-3 py-2">
-            <Search className="h-4 w-4 text-slate-500" />
-            <input
-              className="ml-2 w-full bg-transparent text-sm outline-none"
-              placeholder={
-                membershipTab === "pending"
-                  ? "Search invitations..."
-                  : "Search members..."
-              }
+          <div className="flex flex-wrap items-center gap-2">
+            <Select
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={[{ label: "All statuses", value: "all" }, { label: "Active", value: "active" }, { label: "Inactive", value: "inactive" }, { label: "Archived", value: "archived" }]}
+              className="min-w-36"
+              buttonClassName="h-10 min-h-10 rounded-xl bg-transparent px-3 py-2 text-sm font-medium shadow-none"
+              variant="compact"
+              darkMode={darkMode}
+              aria-label="Filter by status"
             />
+            <Select
+              value={typeFilter}
+              onChange={setTypeFilter}
+              options={[{ label: "All types", value: "all" }, ...audienceTypes.map((type) => ({ label: type.replaceAll("_", " "), value: type }))]}
+              className="min-w-36 max-w-44"
+              buttonClassName="h-10 min-h-10 rounded-xl bg-transparent px-3 py-2 text-sm font-medium shadow-none capitalize"
+              variant="compact"
+              darkMode={darkMode}
+              aria-label="Filter by type"
+            />
+            <div className={cn("flex rounded-xl border p-1", border)}>
+              <button onClick={() => setView("table")} aria-label="Table view" aria-pressed={view === "table"} className={cn("rounded-lg p-2", view === "table" ? "bg-teal-50 text-primary" : muted)}><List className="h-4 w-4" /></button>
+              <button onClick={() => setView("grid")} aria-label="Grid view" aria-pressed={view === "grid"} className={cn("rounded-lg p-2", view === "grid" ? "bg-teal-50 text-primary" : muted)}><LayoutGrid className="h-4 w-4" /></button>
+            </div>
+            <button onClick={() => void loadWorkspace()} aria-label="Refresh audiences" className={cn("rounded-xl border p-2.5", border, muted)}><RefreshCw className="h-4 w-4" /></button>
           </div>
-          <div className="mt-3 space-y-3">
-            {membershipTab === "active"
-              ? activeMembers.map((member) => (
-                  <Card
-                    key={member.id}
-                    className={cn(
-                      "rounded-xl border p-3",
-                      darkMode ? "border-slate-700 bg-slate-800" : "border-slate-200 bg-white/60",
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                      <AvatarSeed seed={member.name} />
-                      <div className="min-w-0 flex-1">
-                        <b className="text-sm">{member.name}</b>
-                        <div className="text-xs text-slate-500">{member.id}</div>
-                      </div>
-                      <span className="rounded-full bg-green-100 px-2 py-1 text-[9px] font-bold text-green-700">
-                        ACTIVE
-                      </span>
-                    </div>
-                    <dl className="mt-3 grid grid-cols-2 gap-3 text-xs">
-                      <div>
-                        <dt className="text-slate-500">Joined</dt>
-                        <dd className="mt-1 font-semibold">{member.joinedAt}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-slate-500">Last activity</dt>
-                        <dd className="mt-1 font-semibold">{member.lastActivity}</dd>
-                      </div>
-                    </dl>
-                    <Link
-                      href={`/dashboard/units/${audience.unitId}`}
-                      className="mt-3 inline-flex text-xs font-bold text-primary"
-                    >
-                      VIEW MEMBER IN UNIT ADMIN PORTAL
-                    </Link>
-                  </Card>
-                ))
-              : membershipTab === "pending"
-                ? pendingInvitations.map((invitation) => (
-                    <Card
-                      key={invitation.id}
-                      className={cn(
-                        "rounded-xl border p-3",
-                        darkMode ? "border-slate-700 bg-slate-800" : "border-amber-200 bg-amber-50/70",
-                      )}
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div>
-                          <b className="text-sm">{invitation.recipient}</b>
-                          <div className="text-xs text-slate-500">{invitation.identifier}</div>
-                        </div>
-                        <span
-                          className={cn(
-                            "rounded-full px-2 py-1 text-[9px] font-bold",
-                            invitation.deliveryState === "DELIVERED"
-                              ? "bg-green-100 text-green-700"
-                              : "bg-red-100 text-red-700",
-                          )}
-                        >
-                          {invitation.deliveryState}
-                        </span>
-                      </div>
-                      <dl className="mt-3 grid grid-cols-2 gap-3 text-xs">
-                        <div>
-                          <dt className="text-slate-500">Invitation sent</dt>
-                          <dd className="mt-1 font-semibold">{invitation.invitedAt}</dd>
-                        </div>
-                        <div>
-                          <dt className="text-slate-500">Expires</dt>
-                          <dd className="mt-1 font-semibold">{invitation.expiresAt}</dd>
-                        </div>
-                      </dl>
-                      <Link
-                        href={`/dashboard/units/${audience.unitId}`}
-                        className="mt-3 inline-flex text-xs font-bold text-primary"
-                      >
-                        RESEND OR CANCEL IN UNIT ADMIN PORTAL
-                      </Link>
-                    </Card>
-                  ))
-                : transferEvents.length > 0
-                  ? transferEvents.map((event) => (
-                      <Card
-                        key={event.id}
-                        className={cn(
-                          "rounded-xl border p-3",
-                          darkMode ? "border-slate-700 bg-slate-800" : "border-slate-200 bg-white/60",
-                        )}
-                      >
-                        <div className="flex items-center gap-3">
-                          <AvatarSeed seed={event.userName} />
-                          <div className="min-w-0 flex-1">
-                            <b className="text-sm">{event.userName}</b>
-                            <div className="text-xs text-slate-500">
-                              {event.fromUnit} to {event.toUnit}
-                            </div>
-                          </div>
-                          <span className="rounded-full bg-amber-100 px-2 py-1 text-[9px] font-bold text-amber-700">
-                            TRANSFERRED
-                          </span>
-                        </div>
-                        <dl className="mt-3 grid gap-3 text-xs sm:grid-cols-2">
-                          <div>
-                            <dt className="text-slate-500">Transferred</dt>
-                            <dd className="mt-1 font-semibold">{event.transferredAt}</dd>
-                          </div>
-                          <div>
-                            <dt className="text-slate-500">Logged by</dt>
-                            <dd className="mt-1 font-semibold">{event.actor}</dd>
-                          </div>
-                          <div>
-                            <dt className="text-slate-500">Invalidated memberships</dt>
-                            <dd className="mt-1 font-semibold">
-                              {event.invalidatedMemberships.join(", ")}
-                            </dd>
-                          </div>
-                          <div>
-                            <dt className="text-slate-500">Reassigned memberships</dt>
-                            <dd className="mt-1 font-semibold">
-                              {event.reassignedMemberships.join(", ")}
-                            </dd>
-                          </div>
-                        </dl>
-                        <Link
-                          href={`/dashboard/units/${audience.unitId}`}
-                          className="mt-3 inline-flex text-xs font-bold text-primary"
-                        >
-                          VIEW TRANSFER IN UNIT ADMIN PORTAL
-                        </Link>
-                      </Card>
-                    ))
-                  : inactiveMembers.map((member) => (
-                      <Card
-                        key={member.id}
-                        className={cn(
-                          "rounded-xl border p-3",
-                          darkMode ? "border-slate-700 bg-slate-800" : "border-slate-200 bg-white/60",
-                        )}
-                      >
-                        <div className="flex items-center gap-3">
-                          <AvatarSeed seed={member.name} />
-                          <div className="min-w-0 flex-1">
-                            <b className="text-sm">{member.name}</b>
-                            <div className="text-xs text-slate-500">{member.id}</div>
-                          </div>
-                          <span className="rounded-full bg-slate-200 px-2 py-1 text-[9px] font-bold text-slate-600">
-                            INACTIVE
-                          </span>
-                        </div>
-                        <dl className="mt-3 grid gap-3 text-xs sm:grid-cols-3">
-                          <div>
-                            <dt className="text-slate-500">Inactive since</dt>
-                            <dd className="mt-1 font-semibold">{member.inactiveAt}</dd>
-                          </div>
-                          <div>
-                            <dt className="text-slate-500">Reason</dt>
-                            <dd className="mt-1 font-semibold">{member.reason}</dd>
-                          </div>
-                          <div>
-                            <dt className="text-slate-500">Last activity</dt>
-                            <dd className="mt-1 font-semibold">{member.lastActivity}</dd>
-                          </div>
-                        </dl>
-                        <Link
-                          href={`/dashboard/units/${audience.unitId}`}
-                          className="mt-3 inline-flex text-xs font-bold text-primary"
-                        >
-                          VIEW MEMBERSHIP AUDIT IN UNIT ADMIN PORTAL
-                        </Link>
-                      </Card>
-                    ))}
-          </div>
-          <Link
-            href={`/dashboard/units/${audience.unitId}`}
-            className="mt-4 inline-flex text-xs font-bold text-primary hover:underline"
-          >
-            VIEW ALL {membershipTab === "active" ? "ACTIVE MEMBERS" : membershipTab === "pending" ? "PENDING INVITATIONS" : "INVALIDATED MEMBERSHIPS"}
-          </Link>
-        </section>
-        <section className="mt-7">
-          <h3 className="text-sm font-bold">RECENT ACTIVITY</h3>
-          <div className="mt-3 space-y-3">
-            {transferEvents.length > 0 ? (
-              transferEvents.map((event) => (
-                <Card
-                  key={event.id}
-                  className={cn(
-                    "rounded-2xl border p-4",
-                    darkMode
-                      ? "border-slate-700 bg-slate-800"
-                      : "border-teal-200 bg-white/40",
-                  )}
-                >
-                  <b>
-                    {event.userName} transferred from {event.fromUnit} to {event.toUnit}
-                  </b>
-                  <div className="mt-1 text-xs text-slate-500">
-                    {event.transferredAt} by {event.actor}
-                  </div>
-                  <div className="mt-3 text-xs text-slate-500">
-                    Invalidated memberships: {event.invalidatedMemberships.join(", ")}
-                  </div>
-                  <div className="mt-1 text-xs text-slate-500">
-                    Reassigned memberships: {event.reassignedMemberships.join(", ")}
-                  </div>
-                </Card>
-              ))
-            ) : (
-              <Card
-                className={cn(
-                  "rounded-2xl border p-4",
-                  darkMode
-                    ? "border-slate-700 bg-slate-800"
-                    : "border-teal-200 bg-white/40",
-                )}
-              >
-                <b>Admin added 7 new users</b>
-                <div className="mt-1 text-xs text-slate-500">2 days ago</div>
-              </Card>
-            )}
-          </div>
-          <Link
-            href={`/dashboard/units/${audience.unitId}`}
-            className="mt-4 inline-flex text-xs font-bold text-primary hover:underline"
-          >
-            VIEW ALL ACTIVITY
-          </Link>
-        </section>
-        <div className="mt-8 grid grid-cols-2 gap-3">
-          <button className="rounded-xl border border-slate-500 py-3 text-sm font-bold">
-            VIEW UNIT
-          </button>
-          <button className="rounded-xl border border-slate-500 py-3 text-sm font-bold">
-            VIEW AUDIT LOG
-          </button>
         </div>
-      </aside>
-    </div>
+
+        {loading ? (
+          <div className={cn("flex min-h-64 flex-col items-center justify-center gap-3", muted)}><LoaderCircle className="h-7 w-7 animate-spin text-primary" /><span className="text-sm">Loading audiences…</span></div>
+        ) : error ? (
+          <div className="flex min-h-64 flex-col items-center justify-center px-6 text-center">
+            <CircleAlert className="h-8 w-8 text-rose-500" /><p className="mt-3 max-w-lg text-sm">{error}</p><button onClick={() => void loadWorkspace()} className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white">Try again</button>
+          </div>
+        ) : audiences.length === 0 ? (
+          <div className="flex min-h-72 flex-col items-center justify-center px-6 py-12 text-center">
+            <div className="grid h-14 w-14 place-items-center rounded-2xl bg-teal-50 text-primary"><Users className="h-7 w-7" /></div>
+            <h2 className="mt-5 text-lg font-semibold">No audiences yet</h2><p className={cn("mt-2 max-w-md text-sm", muted)}>Create your first audience to start organizing members across your units.</p>
+            {accessRole !== "audience" ? (
+              <button onClick={() => setModalAudience(null)} disabled={units.length === 0} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"><Plus className="h-4 w-4" />Create audience</button>
+            ) : null}
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className={cn("flex min-h-56 flex-col items-center justify-center gap-2 px-6 text-center", muted)}><Search className="h-6 w-6" /><p className="text-sm">No audiences match these filters.</p><button onClick={() => { setQuery(""); setStatusFilter("all"); setTypeFilter("all"); }} className="text-sm font-semibold text-primary">Clear filters</button></div>
+        ) : view === "table" ? (
+          <div className="overflow-x-auto">
+            <DataTable darkMode={darkMode} className="w-full min-w-[780px] text-left text-sm">
+              <thead className={cn("text-xs uppercase tracking-wide", muted, darkMode ? "bg-slate-950/50" : "bg-slate-50")}><tr><th className="px-5 py-3 font-semibold">Audience</th><th className="px-5 py-3 font-semibold">Unit</th><th className="px-5 py-3 font-semibold">Type</th><th className="px-5 py-3 font-semibold">Expected members</th><th className="px-5 py-3 font-semibold">Status</th><th className="px-5 py-3 font-semibold">Created</th><th className="px-5 py-3" /></tr></thead>
+              <tbody>{filtered.map((audience) => (
+                <tr key={audience.audience_id} onClick={() => openAudience(audience)} className={cn("cursor-pointer border-t transition hover:bg-slate-50 dark:hover:bg-slate-800/50", border)}>
+                  <td className="px-5 py-4"><div className="font-semibold">{audience.name}</div>{audience.description ? <div className={cn("mt-1 max-w-xs truncate text-xs", muted)}>{audience.description}</div> : null}</td>
+                  <td className={cn("px-5 py-4", muted)}>{unitNames.get(audience.unit) ?? `Unit ${audience.unit}`}</td>
+                  <td className={cn("px-5 py-4 capitalize", muted)}>{audience.audience_type.replaceAll("_", " ")}</td>
+                  <td className={cn("px-5 py-4", muted)}>{audience.expected_member_count?.toLocaleString() ?? "—"}</td>
+                  <td className="px-5 py-4"><StatusBadge audience={audience} /></td>
+                  <td className={cn("px-5 py-4", muted)}>{formatDate(audience.created_at)}</td>
+                  <td className="px-5 py-4" onClick={(event) => event.stopPropagation()}>{accessRole !== "audience" ? <AudienceActions audience={audience} darkMode={darkMode} busy={busyAudienceId === audience.audience_id} onView={() => openAudience(audience)} onEdit={() => setModalAudience(audience)} onArchive={() => void archiveAudience(audience)} /> : <button type="button" onClick={() => openAudience(audience)} className="text-xs font-semibold text-primary">View</button>}</td>
+                </tr>
+              ))}</tbody>
+            </DataTable>
+            <div className={cn("border-t px-5 py-3 text-xs", muted, border)}>Showing {filtered.length} of {audiences.length} audiences</div>
+          </div>
+        ) : (
+          <div className="grid gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3">
+            {filtered.map((audience) => <Card key={audience.audience_id} onClick={() => openAudience(audience)} className={cn("cursor-pointer rounded-2xl border p-5 transition hover:-translate-y-0.5 hover:shadow-md", surface, border)}>
+              <div className="flex items-start justify-between gap-3"><div><h3 className="font-semibold">{audience.name}</h3><p className={cn("mt-1 text-xs", muted)}>{unitNames.get(audience.unit) ?? `Unit ${audience.unit}`}</p></div><StatusBadge audience={audience} /></div>
+              <p className={cn("mt-4 min-h-10 text-sm", muted)}>{audience.description || "No description provided."}</p>
+              <div className={cn("mt-4 flex items-center justify-between border-t pt-4 text-xs", border, muted)}><span className="capitalize">{audience.audience_type.replaceAll("_", " ")}</span><span>{audience.expected_member_count?.toLocaleString() ?? "—"} expected</span></div>
+              {accessRole !== "audience" ? <div className="mt-4 flex justify-end" onClick={(event) => event.stopPropagation()}><AudienceActions audience={audience} darkMode={darkMode} busy={busyAudienceId === audience.audience_id} onView={() => openAudience(audience)} onEdit={() => setModalAudience(audience)} onArchive={() => void archiveAudience(audience)} /></div> : null}
+            </Card>)}
+          </div>
+        )}
+      </DataTablePanel>
+
+      {modalAudience !== undefined ? <AudienceModal darkMode={darkMode} units={units} audience={modalAudience} saving={saving} canAssignAdmin={accessRole !== "audience"} onClose={() => { if (!saving) setModalAudience(undefined); }} onSubmit={(values) => void saveAudience(values)} /> : null}
+      {selectedAudience ? <AudienceDetailDrawer
+        darkMode={darkMode}
+        audience={selectedAudience}
+        unitName={unitNames.get(selectedAudience.unit) ?? `Unit ${selectedAudience.unit}`}
+        members={audienceMembers}
+        admins={adminInvites.filter((invite) => invite.invited_audience === selectedAudience.audience_id && !["revoked", "expired"].includes(invite.status.toLowerCase()))}
+        loading={detailLoading}
+        busy={detailBusy || busyAudienceId === selectedAudience.audience_id}
+        error={detailError}
+        canAssignAdmin={accessRole !== "audience"}
+        onClose={() => setSelectedAudience(null)}
+        onEdit={() => { setSelectedAudience(null); setModalAudience(selectedAudience); }}
+        onArchive={() => void archiveAudience(selectedAudience)}
+        onAddMember={addAudienceMember}
+        onImportMembers={importAudienceMembers}
+        onInviteAdmin={inviteAudienceAdmin}
+      /> : null}
+      {toast ? <DashboardToast tone={toast.tone} title={toast.title} description={toast.description} onClose={() => setToast(null)} /> : null}
+    </section>
   );
 }
 
-export function AudienceWorkspace({ darkMode }: { darkMode: boolean }) {
-  const [audiences, setAudiences] = useState(AUDIENCES);
-  const [view, setView] = useState<"table" | "grid">("table");
-  const [query, setQuery] = useState("");
-  const [type, setType] = useState("all");
-  const [status, setStatus] = useState("all");
-  const [selected, setSelected] = useState<Audience | null>(null);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [toast, setToast] = useState<ToastNotice | null>(null);
-  const filtered = useMemo(
-    () =>
-      audiences.filter(
-        (item) =>
-          `${item.name} ${item.unit} ${item.admins.map((admin) => `${admin.name} ${admin.email} ${admin.role}`).join(" ")} ${item.type} ${item.identifier}`
-            .toLowerCase()
-            .includes(query.toLowerCase()) &&
-          (type === "all" || item.type === type) &&
-          (status === "all" || item.status === status),
-      ),
-    [audiences, query, type, status],
-  );
-  const metrics = [
-    { title: "Total Audiences", value: String(audiences.length) },
-    {
-      title: "Total Users",
-      value: String(audiences.reduce((sum, audience) => sum + (audience.members ?? 0), 0)),
-    },
-    {
-      title: "Audience Admins",
-      value: String(new Set(audiences.flatMap((audience) => audience.admins.map((admin) => admin.id))).size),
-    },
-    {
-      title: "Pending Approval",
-      value: String(audiences.reduce((sum, audience) => sum + (audience.pending ?? 0), 0)),
-      valueClassName: "text-amber-600 dark:text-amber-400",
-    },
-  ];
-  const options = (values: string[], all: string) => [
-    { label: all, value: "all" },
-    ...values.map((value) => ({ label: value, value })),
-  ];
+function AudienceActions({
+  audience,
+  darkMode,
+  busy,
+  onView,
+  onEdit,
+  onArchive,
+}: {
+  audience: WorkspaceAudience;
+  darkMode: boolean;
+  busy: boolean;
+  onView: () => void;
+  onEdit: () => void;
+  onArchive: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target as Node;
+      if (!menuRef.current?.contains(target) && !buttonRef.current?.contains(target)) {
+        setOpen(false);
+      }
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    function handleScroll() {
+      setOpen(false);
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("scroll", handleScroll, true);
+    window.addEventListener("resize", handleScroll);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("scroll", handleScroll, true);
+      window.removeEventListener("resize", handleScroll);
+    };
+  }, [open]);
+
+  function toggleMenu() {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+
+    const rect = buttonRef.current?.getBoundingClientRect();
+    if (rect) {
+      const menuHeight = audience.is_archived ? 88 : 128;
+      const menuWidth = 160;
+      const fitsBelow = rect.bottom + menuHeight + 8 <= window.innerHeight;
+      setMenuPosition({
+        top: fitsBelow ? rect.bottom + 6 : Math.max(8, rect.top - menuHeight - 6),
+        left: Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8)),
+      });
+    }
+    setOpen(true);
+  }
+
   return (
-    <section className="pb-10">
-      <UnitsPageHeader
-        darkMode={darkMode}
-        title="Audiences"
-        description="Manage audiences within your unit"
-        // backHref="/dashboard"
-        // backLabel="Back to Dashboard"
-        breadcrumb={[
-          { label: "Legacy Campus", active: true },
-        ]}
-      />
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {metrics.map((metric) => (
-          <DetailMetricCard
-            key={metric.title}
-            darkMode={darkMode}
-            variant="simple"
-            {...metric}
-          />
-        ))}
-      </div>
-      <div className="mt-7 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex gap-2">
-        <button
-          onClick={() => setView("table")}
-          className={cn(
-            "flex min-h-11 items-center gap-2 border-b-2 px-4 py-2 text-sm font-semibold",
-            view === "table"
-              ? "border-primary text-primary"
-              : darkMode
-                ? "border-transparent text-slate-400"
-                : "border-transparent text-slate-500",
-          )}
+    <div className="relative flex justify-end">
+      <button ref={buttonRef} type="button" disabled={busy} aria-haspopup="menu" aria-expanded={open} onClick={toggleMenu} className={cn("inline-flex items-center gap-1 rounded-lg border px-3 py-2 text-xs font-semibold disabled:opacity-50", darkMode ? "border-slate-700" : "border-slate-200")}>
+        {busy ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : "Manage"}<ChevronDown className="h-3.5 w-3.5" />
+      </button>
+      {open && typeof document !== "undefined" ? createPortal(
+        <div
+          ref={menuRef}
+          role="menu"
+          style={{ top: menuPosition.top, left: menuPosition.left }}
+          className={cn("fixed z-[1000] w-40 overflow-hidden rounded-xl border p-1 shadow-2xl", darkMode ? "border-slate-700 bg-slate-900 text-slate-100" : "border-slate-200 bg-white text-slate-900")}
         >
-          <List className="h-4 w-4" />
-          Table
-        </button>
-        <button
-          onClick={() => setView("grid")}
-          className={cn(
-            "flex min-h-11 items-center gap-2 border-b-2 px-4 py-2 text-sm font-semibold",
-            view === "grid"
-              ? "border-primary text-primary"
-              : darkMode
-                ? "border-transparent text-slate-400"
-                : "border-transparent text-slate-500",
-          )}
-        >
-          <Grid2X2 className="h-4 w-4" />
-          Grid
-        </button>
-        </div>
-        <button onClick={() => setCreateOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-teal-700"><Plus className="h-5 w-5" />Create Audience</button>
-      </div>
-      <Card
-        className={cn(
-          "mt-1",
-          darkMode
-            ? "text-white"
-            : "text-slate-900",
-        )}
-      >
-        <TableFilterBar
-          darkMode={darkMode}
-          searchPlaceholder="Search audiences"
-          searchValue={query}
-          onSearchChange={setQuery}
-          selects={[
-            {
-              label: "Audience",
-              value: type,
-              onChange: setType,
-              options: options(
-                ["Class", "Lecture", "Laboratory", "Seminar", "Service", "Meeting"],
-                "All Audiences",
-              ),
-              className: "w-full sm:w-auto sm:min-w-44",
-            },
-            {
-              label: "Status",
-              value: status,
-              onChange: setStatus,
-              options: options(
-                ["DRAFT", "ACTIVE", "INACTIVE", "ARCHIVED"],
-                "All Status",
-              ),
-              className: "w-full sm:w-auto sm:min-w-36",
-            },
-          ]}
-          segments={[]}
-          activeSegment="all"
-          onSegmentChange={() => undefined}
-        />
-        {filtered.length === 0 ? (
-          <EmptyAudience darkMode={darkMode} />
-        ) : view === "table" ? (
-          <DashboardDataTable
-            darkMode={darkMode}
-            headers={["Audience Name", "Type", "Assigned Admin", "Members", "Status", "Date Created"]}
-          >
-                {filtered.map((a) => (
-                  <tr
-                    key={a.id}
-                    className={cn(
-                      "border-t",
-                      darkMode ? "border-slate-800" : "border-slate-200",
-                    )}
-                  >
-                    <td className="px-4 py-5 font-semibold">{a.name}</td>
-                    <td className="px-4 py-5 text-slate-500">{a.type}</td>
-                    <td className="px-4 py-5">
-                      {a.admins.length ? (
-                        <div className="flex items-center gap-2">
-                          <div className="flex -space-x-2">
-                            {a.admins.slice(0, 3).map((admin) => (
-                              <div
-                                key={admin.id}
-                                className={cn(
-                                  "rounded-full ring-2",
-                                  darkMode ? "ring-slate-900" : "ring-white",
-                                )}
-                              >
-                                <AvatarSeed seed={admin.name} />
-                              </div>
-                            ))}
-                          </div>
-                          <div>
-                            <div className="font-semibold">
-                              {a.admins.find((admin) => admin.isPrimary)?.name ??
-                                a.admins[0].name}
-                            </div>
-                            <div className="text-xs text-slate-500">
-                              {a.admins.length} assigned
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="text-amber-600">
-                          Draft · Assignment pending
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-5 text-slate-500">
-                      {a.members ?? "-"}
-                    </td>
-                    <td className="px-4 py-5">
-                      <StatusPill status={a.status} />
-                    </td>
-                    <td className="px-4 py-5">
-                      <button
-                        onClick={() => setSelected(a)}
-                        aria-label={`View ${a.name}`}
-                        title={`View ${a.name}`}
-                        className="inline-flex rounded-lg p-2 text-primary transition hover:bg-[#e7f8f5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                      >
-                        <Eye className="mr-2 h-4 w-4" />{audienceCreatedDate(a)}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-          </DashboardDataTable>
-        ) : (
-          <div className="grid gap-5 p-5 lg:grid-cols-2">
-            {filtered.map((a) => (
-              <Card
-                key={a.id}
-                role="button"
-                tabIndex={0}
-                aria-label={`View ${a.name} details`}
-                onClick={() => setSelected(a)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    setSelected(a);
-                  }
-                }}
-                className={cn(
-                  "cursor-pointer rounded-[22px] border p-5 transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
-                  calculateAudienceHealth(a).state === "warning"
-                    ? "border-yellow-400 bg-yellow-50 hover:-translate-y-0.5 hover:shadow-lg"
-                    : calculateAudienceHealth(a).state === "critical"
-                      ? "border-red-400 bg-red-50 hover:-translate-y-0.5 hover:shadow-lg"
-                      : darkMode
-                        ? "border-slate-700 bg-slate-800 hover:border-primary/40 hover:bg-slate-700/80"
-                        : "border-slate-200 bg-white hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-lg",
-                )}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="text-left text-lg font-bold">
-                    {a.name}
-                  </div>
-                  <StatusPill status={a.status} />
-                </div>
-                <div className="mt-2 flex items-center gap-2 text-xs font-semibold text-slate-500">
-                  <Building2 className="h-3.5 w-3.5" />
-                  {a.unit.toUpperCase()}
-                </div>
-                <div className="mt-7 grid grid-cols-2 text-center">
-                  <div>
-                    <b className="text-2xl">{a.members ?? "-"}</b>
-                    <div className="mt-1 text-xs text-slate-500">
-                      AUDIENCE MEMBERS
-                    </div>
-                  </div>
-                  <div>
-                    <b className="text-2xl">{a.pending ?? "-"}</b>
-                    <div className="mt-1 text-xs text-slate-500">PENDING</div>
-                  </div>
-                </div>
-                <div className="mt-7 flex items-center gap-3">
-                  {a.admins.length ? (
-                    <>
-                      <div className="flex -space-x-2">
-                        {a.admins.slice(0, 3).map((admin) => (
-                          <div
-                            key={admin.id}
-                            className={cn(
-                              "rounded-full ring-2",
-                              darkMode ? "ring-slate-800" : "ring-white",
-                            )}
-                          >
-                            <AvatarSeed seed={admin.name} />
-                          </div>
-                        ))}
-                      </div>
-                      <div>
-                        <b>{a.admins.length} assigned</b>
-                        <div className="text-xs text-slate-500">
-                          {a.admins.find((admin) => admin.isPrimary)?.name ??
-                            a.admins[0].name}{" "}
-                          · Primary
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    <div>
-                      <b>Draft awaiting admin</b>
-                      <div className="text-xs text-amber-600">
-                        Required before activation
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
-        <PaginationControl
-          darkMode={darkMode}
-          summary={`Showing ${filtered.length} of ${audiences.length} audiences`}
-          items={[1]}
-          activePage={1}
-        />
-      </Card>
-      {selected ? (
-        <AudienceDrawer
-          audience={selected}
-          darkMode={darkMode}
-          onClose={() => setSelected(null)}
-        />
+          <button role="menuitem" onClick={() => { setOpen(false); onView(); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800"><Users className="h-4 w-4" />View audience</button>
+          <button role="menuitem" onClick={() => { setOpen(false); onEdit(); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800"><Pencil className="h-4 w-4" />Edit details</button>
+          {!audience.is_archived ? <button role="menuitem" onClick={() => { setOpen(false); onArchive(); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-rose-600 hover:bg-rose-50"><Archive className="h-4 w-4" />Archive</button> : null}
+        </div>,
+        document.body,
       ) : null}
-      {createOpen ? (
-        <CreateAudienceModal
-          darkMode={darkMode}
-          onClose={() => setCreateOpen(false)}
-          onCreate={(audience) => {
-            setAudiences((current) => [audience, ...current]);
-            setCreateOpen(false);
-            setSelected(audience);
-            setToast({
-              tone: "success",
-              title: "Audience created",
-              description: `${audience.name} is ready for member management.`,
-            });
-          }}
-        />
-      ) : null}
-      {toast ? (
-        <DashboardToast
-          tone={toast.tone}
-          title={toast.title}
-          description={toast.description}
-          onClose={() => setToast(null)}
-        />
-      ) : null}
-    </section>
+    </div>
   );
 }

@@ -6,7 +6,9 @@ import { useRouter } from "next/navigation";
 import {
   getValidOnboardingAccessToken,
   readAuthenticatedRoute,
+  readTenantLoginContext,
 } from "@/lib/auth/tenant-session";
+import { getEffectiveDashboardRole } from "@/lib/auth/rbac";
 
 export function SignInSessionGuard({
   children,
@@ -22,7 +24,10 @@ export function SignInSessionGuard({
     const verifySession = async () => {
       const accessToken = await getValidOnboardingAccessToken();
 
-      if (accessToken) {
+      // A token without its tenant role context cannot enter the dashboard.
+      // Leave the sign-in flow available so the user can establish a complete
+      // session instead of bouncing between /dashboard and /signin forever.
+      if (accessToken && getEffectiveDashboardRole(readTenantLoginContext())) {
         router.replace(readAuthenticatedRoute() || "/dashboard");
         return;
       }

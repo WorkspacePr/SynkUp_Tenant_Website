@@ -4,7 +4,6 @@ import Link from "next/link";
 import {
   AlertTriangle,
   ArrowRight,
-  CheckCircle2,
   ChevronDown,
   Command,
   Clock3,
@@ -17,6 +16,7 @@ import {
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { Select } from "@/components/ui/Select";
 import { cn } from "@/utils";
 
 import type {
@@ -148,90 +148,19 @@ export function CompactSelect({
   disabled?: boolean;
   ariaLabel?: string;
 }) {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const selected = options.find((option) => option.value === value);
-
-  useEffect(() => {
-    function handlePointerDown(event: MouseEvent) {
-      if (!containerRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    }
-
-    document.addEventListener("mousedown", handlePointerDown);
-    return () => document.removeEventListener("mousedown", handlePointerDown);
-  }, []);
-
   return (
-    <div ref={containerRef} className={cn("relative", className)}>
-      <button
-        type="button"
-        aria-label={ariaLabel}
-        disabled={disabled}
-        onClick={() => setOpen((current) => !current)}
-        className={cn(
-          "inline-flex min-h-10 w-full items-center justify-between gap-2 rounded-full border px-3 text-sm font-semibold shadow-sm transition",
-          darkMode
-            ? "border-slate-700 bg-slate-900 text-white"
-            : "border-slate-200 bg-white text-slate-700",
-          buttonClassName,
-          disabled && "cursor-not-allowed opacity-60",
-        )}
-      >
-        <span className="truncate capitalize">
-          {(selected?.label ?? value).replaceAll("_", " ")}
-        </span>
-        <ChevronDown
-          className={cn(
-            "h-4 w-4 shrink-0 transition-transform",
-            darkMode ? "text-slate-500" : "text-slate-400",
-            open && "rotate-180",
-          )}
-        />
-      </button>
-
-      {open ? (
-        <div
-          className={cn(
-            "scrollbar-dashboard absolute right-0 z-30 mt-2 max-h-64 min-w-full overflow-x-hidden overflow-y-auto rounded-2xl border p-2 shadow-[0_24px_48px_-28px_rgba(15,23,42,0.42)]",
-            darkMode
-              ? "border-slate-700 bg-slate-900"
-              : "border-slate-200 bg-white",
-          )}
-        >
-          {options.map((option) => {
-            const isSelected = option.value === value;
-
-            return (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => {
-                  onChange(option.value);
-                  setOpen(false);
-                }}
-                className={cn(
-                  "flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm transition",
-                  isSelected
-                    ? darkMode
-                      ? "bg-[#113c39] text-[#67d6cf]"
-                      : "bg-[#edf9f8] text-[#16a394]"
-                    : darkMode
-                      ? "text-slate-200 hover:bg-slate-800"
-                      : "text-slate-700 hover:bg-slate-50",
-                )}
-              >
-                <span className="truncate">{option.label}</span>
-                {isSelected ? (
-                  <CheckCircle2 className="h-4 w-4 shrink-0 text-[#16a394]" />
-                ) : null}
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
-    </div>
+    <Select
+      value={value}
+      options={options}
+      onChange={onChange}
+      className={className}
+      buttonClassName={cn("rounded-full", buttonClassName)}
+      darkMode={darkMode}
+      disabled={disabled}
+      variant="compact"
+      align="end"
+      aria-label={ariaLabel}
+    />
   );
 }
 
@@ -1936,14 +1865,15 @@ export function TrendCard({
   darkMode,
   heights,
   role,
+  labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
 }: {
   title: string;
   subtitle: string;
   darkMode: boolean;
   heights: number[];
   role: RoleKey;
+  labels?: string[];
 }) {
-  const labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const chartHeight = 220;
   const barWidth = 72;
   const gap = 12;
@@ -2016,7 +1946,7 @@ export function TrendCard({
 
             return (
               <rect
-                key={`${labels[index]}-${height}`}
+                key={`${labels[index] ?? index}-${height}`}
                 x={x}
                 y={y}
                 width={barWidth}

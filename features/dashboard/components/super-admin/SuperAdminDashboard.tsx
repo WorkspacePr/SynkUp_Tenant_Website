@@ -1,6 +1,6 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   PerformanceCard,
@@ -9,14 +9,17 @@ import {
   TrendCard,
   roleConfigs,
 } from "@/features/dashboard/components/showcase";
+import type { SuperAdminDashboardResponse } from "@/features/dashboard/api/super-admin-dashboard";
+import { getSuperAdminDashboard } from "@/features/dashboard/api/super-admin-dashboard";
 
-import { buildSuperAdminDashboardData } from "./adapters";
+import { mapSuperAdminDashboardData } from "./adapters";
 import { AttentionPanel } from "./AttentionPanel";
 import { DashboardHeader } from "./DashboardHeader";
 import { DashboardSection } from "./DashboardSection";
 import { HealthStatusStrip } from "./HealthStatusStrip";
 import { QuickActions } from "./QuickActions";
 import { RecentActivity } from "./RecentActivity";
+import { renderWidgetState } from "./DashboardStates";
 
 type SuperAdminDashboardProps = {
   darkMode: boolean;
@@ -29,12 +32,70 @@ function SuperAdminDashboardComponent({
   activeScope,
   userName = "John Doe",
 }: SuperAdminDashboardProps) {
-  const data = buildSuperAdminDashboardData({
-    activeScope,
-    userName,
-  });
-  const config = roleConfigs.super;
-  const chartHeights = [41, 48, 43, 57, 51, 62, 58];
+  const [response, setResponse] = useState<SuperAdminDashboardResponse | null>(null);
+  const [requestState, setRequestState] = useState<"loading" | "error" | "permission" | "default">("loading");
+  const [requestMessage, setRequestMessage] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
+
+  const retry = useCallback(() => setReloadKey((current) => current + 1), []);
+
+  useEffect(() => {
+    let active = true;
+    setRequestState("loading");
+
+    void getSuperAdminDashboard().then((result) => {
+      if (!active) return;
+      if (!result.success) {
+        setRequestMessage(result.message);
+        setRequestState(result.status === 401 || result.status === 403 ? "permission" : "error");
+        return;
+      }
+
+      setResponse(result.data);
+      setRequestMessage("");
+      setRequestState("default");
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [reloadKey]);
+
+  const data = useMemo(
+    () => response ? mapSuperAdminDashboardData({ response, activeScope, userName }) : null,
+    [activeScope, response, userName],
+  );
+  const config = useMemo(
+    () => data ? {
+      ...roleConfigs.super,
+      metrics: data.metrics,
+      performanceBars: data.performanceBars,
+      sessions: data.sessions,
+    } : roleConfigs.super,
+    [data],
+  );
+
+  if (!data) {
+    return (
+      <div className="space-y-6 py-4">
+        {renderWidgetState({
+          darkMode,
+          state: requestState === "default" ? "error" : requestState,
+          title:
+            requestState === "loading"
+              ? "Loading Super Admin dashboard"
+              : requestState === "permission"
+                ? "Super Admin access is required"
+                : "Unable to load the dashboard",
+          description:
+            requestState === "loading"
+              ? "Preparing the latest organisation metrics, sessions, and activity."
+              : requestMessage || "Try loading the dashboard again.",
+          onRetry: retry,
+        })}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 py-4">
@@ -73,7 +134,8 @@ function SuperAdminDashboardComponent({
           title={config.trendTitle}
           subtitle={config.trendSubtitle}
           darkMode={darkMode}
-          heights={chartHeights}
+          heights={data.trendHeights}
+          labels={data.trendLabels}
           role="super"
         />
         <PerformanceCard
@@ -85,11 +147,24 @@ function SuperAdminDashboardComponent({
       </div>
 
       <DashboardSection darkMode={darkMode}>
-        <SessionCard config={config} darkMode={darkMode} role="super" />
+        {data.sessions.length > 0 ? (
+          <SessionCard config={config} darkMode={darkMode} role="super" />
+        ) : (
+          renderWidgetState({
+            darkMode,
+            state: "empty",
+            title: "No sessions today",
+            description: "No live or upcoming sessions are scheduled right now.",
+          })
+        )}
       </DashboardSection>
 
       <DashboardSection darkMode={darkMode}>
-        <RecentActivity darkMode={darkMode} items={data.activity} />
+        <RecentActivity
+          darkMode={darkMode}
+          items={data.activity}
+          state={data.activity.length > 0 ? "default" : "empty"}
+        />
       </DashboardSection>
 
       <DashboardSection

@@ -25,6 +25,7 @@ type ShowcaseNavbarProps = {
   isLoggingOut?: boolean;
   settingsHref: string;
   commandBar?: CommandBarConfig;
+  navigationDisabled?: boolean;
 };
 
 export function ShowcaseNavbar({
@@ -42,6 +43,7 @@ export function ShowcaseNavbar({
   isLoggingOut = false,
   settingsHref,
   commandBar,
+  navigationDisabled = false,
 }: ShowcaseNavbarProps) {
   const [profileOpen, setProfileOpen] = useState(false);
   const [account, setAccount] = useState({ name: "Loading...", email: "" });
@@ -80,16 +82,18 @@ export function ShowcaseNavbar({
         <button
           type="button"
           onClick={onToggleSidebar}
+          disabled={navigationDisabled}
           className={cn(
             "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
             darkMode ? "bg-slate-900 text-white" : "text-slate-900",
+            navigationDisabled && "cursor-not-allowed opacity-45",
           )}
         >
           <Menu className="h-7 w-7" />
         </button>
 
         {commandBar ? (
-          <div className="hidden min-w-0 flex-1 md:flex md:max-w-105">
+          <div className={cn("hidden min-w-0 flex-1 md:flex md:max-w-105", navigationDisabled && "pointer-events-none opacity-45")}>
             <CommandSearchBar commandBar={commandBar} darkMode={darkMode} />
           </div>
         ) : (
@@ -114,6 +118,7 @@ export function ShowcaseNavbar({
             className="w-39 min-w-0 sm:w-auto sm:min-w-37.5"
             buttonClassName="border-transparent bg-[#8fd3cf] font-bold tracking-[0.08em] text-[#173433]"
             darkMode={darkMode}
+            disabled={navigationDisabled}
           />
 
           <CompactSelect
@@ -127,6 +132,7 @@ export function ShowcaseNavbar({
                 : "border-slate-200 bg-white text-slate-700",
             )}
             darkMode={darkMode}
+            disabled={navigationDisabled}
           />
 
           <CompactSelect
@@ -143,13 +149,16 @@ export function ShowcaseNavbar({
                 : "border-slate-200 bg-white text-slate-700",
             )}
             darkMode={darkMode}
+            disabled={navigationDisabled}
           />
 
           <button
             type="button"
+            disabled={navigationDisabled}
             className={cn(
               "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full",
               darkMode ? "text-white" : "text-slate-900",
+              navigationDisabled && "cursor-not-allowed opacity-45",
             )}
           >
             <Bell className="h-5 w-5" />
@@ -245,21 +254,34 @@ export function ShowcaseNavbar({
                 </div>
 
                 <div className="mt-4 space-y-2">
-                  <Link
-                    href={settingsHref}
-                    onClick={() => setProfileOpen(false)}
-                    className={cn(
-                      "flex w-full items-center justify-between rounded-2xl px-3 py-2.5 text-left text-sm font-medium transition",
-                      darkMode
-                        ? "text-slate-200 hover:bg-slate-800"
-                        : "text-slate-700 hover:bg-slate-50",
-                    )}
-                  >
-                    <span>Account Settings</span>
-                    <span className={cn(darkMode ? "text-slate-500" : "text-slate-400")}>
-                      Open
-                    </span>
-                  </Link>
+                  {navigationDisabled ? (
+                    <div
+                      className={cn(
+                        "flex w-full cursor-not-allowed items-center justify-between rounded-2xl px-3 py-2.5 text-left text-sm font-medium opacity-45",
+                        darkMode ? "text-slate-200" : "text-slate-700",
+                      )}
+                      aria-disabled="true"
+                    >
+                      <span>Account Settings</span>
+                      <span className={cn(darkMode ? "text-slate-500" : "text-slate-400")}>Locked</span>
+                    </div>
+                  ) : (
+                    <Link
+                      href={settingsHref}
+                      onClick={() => setProfileOpen(false)}
+                      className={cn(
+                        "flex w-full items-center justify-between rounded-2xl px-3 py-2.5 text-left text-sm font-medium transition",
+                        darkMode
+                          ? "text-slate-200 hover:bg-slate-800"
+                          : "text-slate-700 hover:bg-slate-50",
+                      )}
+                    >
+                      <span>Account Settings</span>
+                      <span className={cn(darkMode ? "text-slate-500" : "text-slate-400")}>
+                        Open
+                      </span>
+                    </Link>
+                  )}
                   <button
                     type="button"
                     onClick={onLogout}
@@ -285,7 +307,9 @@ export function ShowcaseNavbar({
 
       <div className="mt-3 space-y-3 md:hidden">
         {commandBar ? (
-          <CommandSearchBar commandBar={commandBar} darkMode={darkMode} />
+          <div className={cn(navigationDisabled && "pointer-events-none opacity-45")}>
+            <CommandSearchBar commandBar={commandBar} darkMode={darkMode} />
+          </div>
         ) : (
           <div
             className={cn(
@@ -314,6 +338,7 @@ export function ShowcaseNavbar({
               : "border-slate-200 bg-white text-slate-700",
           )}
           darkMode={darkMode}
+          disabled={navigationDisabled}
         />
       </div>
     </header>

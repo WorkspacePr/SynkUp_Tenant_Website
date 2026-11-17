@@ -365,6 +365,7 @@ export function SignInFlow() {
 
     storeTenantLoginContext({
       userId: result.userId ?? undefined,
+      firstName: result.firstName ?? undefined,
       organizationId: result.organizationId ?? undefined,
       organizationName: result.organizationName || undefined,
       dashboardRole: result.dashboardRole ?? undefined,
@@ -452,6 +453,12 @@ export function SignInFlow() {
     }
 
     storeOnboardingTokens(result.tokens);
+    if (result.userId || result.firstName) {
+      storeTenantLoginContext({
+        userId: result.userId ?? undefined,
+        firstName: result.firstName ?? undefined,
+      });
+    }
     const loginContext = readTenantLoginContext();
     await finalizeLogin({
       dashboardRole: result.dashboardRole ?? loginContext?.dashboardRole,

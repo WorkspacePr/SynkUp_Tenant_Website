@@ -177,10 +177,11 @@ const fallbackReferenceData = {
   audienceTypeOptions: [
     { value: "class", label: "Class" },
     { value: "department", label: "Department" },
-    { value: "service", label: "Service" },
     { value: "team", label: "Team" },
   ] satisfies SelectOption[],
 };
+
+const supportedAudienceTypeCodes = new Set(["class", "department", "team"]);
 
 function getDjangoApiBase() {
   return process.env.NEXT_PUBLIC_DJANGO_API_BASE ?? process.env.DJANGO_API_BASE;
@@ -424,7 +425,8 @@ export async function getReferenceData() {
     const attendanceIdentifierOptions = mapReferenceItemsToOptions(payload.attendance_identifier);
     const unitTypeOptions = mapReferenceItemsToOptions(payload.unit_type);
     const countryOptions = mapReferenceItemsToOptions(payload.country);
-    const audienceTypeOptions = mapReferenceItemsToOptions(payload.audience_type);
+    const audienceTypeOptions = mapReferenceItemsToOptions(payload.audience_type)
+      .filter((option) => supportedAudienceTypeCodes.has(option.value));
 
     return {
       organizationTypeOptions:

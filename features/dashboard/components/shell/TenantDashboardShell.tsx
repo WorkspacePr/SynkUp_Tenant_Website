@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import { buildTenantSignInUrl, logoutTenantSession, readTenantLoginContext } from "@/lib/auth/tenant-session";
 import type { TenantLoginContext } from "@/lib/auth/tenant-session";
-import { canAccessNavigationItem, getAccessibleDashboardRoles, getEffectiveDashboardRole } from "@/lib/auth/rbac";
+import { canAccessNavigationItem, getAccessibleDashboardRoles, getEffectiveDashboardRole, getRequestedDashboardRole } from "@/lib/auth/rbac";
 import { getTenantUnits } from "@/features/dashboard/api/tenant-units";
 import { getOrganizationOnboardingAudiences } from "@/features/onboarding/api/tenant-onboarding";
 import { cn } from "@/utils";
@@ -41,13 +41,111 @@ import { AttendanceWorkspace } from "../showcase/attendance/AttendanceWorkspace"
 import { ReportsWorkspace } from "../showcase/reports/ReportsWorkspace";
 import { SubscriptionWorkspace } from "../showcase/subscription/SubscriptionWorkspace";
 import { SettingsWorkspace } from "../showcase/settings/SettingsWorkspace";
+import { SessionsWorkspace } from "../showcase/sessions/SessionsWorkspace";
 import { InheritedDashboardEmptyState } from "./InheritedDashboardEmptyState";
+import { DashboardScopeState } from "./DashboardScopeState";
 
-type SectionKey = "dashboard" | "units" | "audience" | "users" | "attendance" | "reports" | "subscription" | "settings";
+type SectionKey = "dashboard" | "units" | "sessions" | "audience" | "users" | "attendance" | "reports" | "subscription" | "settings";
 type UnitWorkspaceView = "overview" | "list" | "detail";
 type ThemePreference = "light" | "dark";
 
 const THEME_PREFERENCE_STORAGE_KEY = "synkup-theme-preference";
+const EMPTY_SCOPE_IDS: number[] = [];
+const SCOPE_AVAILABILITY_CACHE_TTL_MS = 5 * 60 * 1000;
+const EMPTY_SCOPE_AVAILABILITY_CACHE_TTL_MS = 10 * 1000;
+
+type ScopeAvailability = {
+  loading: boolean;
+  units: { id: number; name: string }[];
+  audiences: { id: number; name: string; unitId: number }[];
+  unitsError: boolean;
+  audiencesError: boolean;
+};
+
+const scopeAvailabilityCache = new Map<
+  number,
+  { value: Omit<ScopeAvailability, "loading">; expiresAt: number }
+>();
+const scopeAvailabilityRequests = new Map<
+  number,
+  Promise<Omit<ScopeAvailability, "loading">>
+>();
+
+function getCachedScopeAvailability(organizationId: number) {
+  const cached = scopeAvailabilityCache.get(organizationId);
+  if (!cached || cached.expiresAt <= Date.now()) {
+    scopeAvailabilityCache.delete(organizationId);
+    return null;
+  }
+
+  return cached.value;
+}
+
+async function loadScopeAvailability(organizationId: number, force = false) {
+  if (!force) {
+    const cached = getCachedScopeAvailability(organizationId);
+    if (cached) return cached;
+
+    const pending = scopeAvailabilityRequests.get(organizationId);
+    if (pending) return pending;
+  }
+
+  const request = Promise.all([
+    getTenantUnits({ page: 1 }),
+    getOrganizationOnboardingAudiences(organizationId),
+  ]).then(([unitsResult, audiencesResult]) => {
+    const value: Omit<ScopeAvailability, "loading"> = {
+      units: unitsResult.success
+        ? unitsResult.data.data.map((unit) => ({ id: unit.unit_id, name: unit.name }))
+        : [],
+      audiences: audiencesResult.success
+        ? audiencesResult.data.results.map((audience) => ({
+            id: audience.audience_id,
+            name: audience.name,
+            unitId: audience.unit,
+          }))
+        : [],
+      unitsError: !unitsResult.success,
+      audiencesError: !audiencesResult.success,
+    };
+
+    scopeAvailabilityCache.set(organizationId, {
+      value,
+      expiresAt:
+        Date.now() +
+        (value.units.length === 0 || value.audiences.length === 0
+          ? EMPTY_SCOPE_AVAILABILITY_CACHE_TTL_MS
+          : SCOPE_AVAILABILITY_CACHE_TTL_MS),
+    });
+    scopeAvailabilityRequests.delete(organizationId);
+    return value;
+  }).catch(() => {
+    const value: Omit<ScopeAvailability, "loading"> = {
+      units: [],
+      audiences: [],
+      unitsError: true,
+      audiencesError: true,
+    };
+    scopeAvailabilityRequests.delete(organizationId);
+    return value;
+  });
+
+  scopeAvailabilityRequests.set(organizationId, request);
+  return request;
+}
+
+function getDashboardUserName(context: TenantLoginContext | null) {
+  if (context?.firstName?.trim()) return context.firstName.trim();
+
+  const emailName = context?.email?.split("@")[0]?.trim();
+  if (!emailName) return "Admin";
+
+  return emailName
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join(" ");
+}
 
 type TenantDashboardShellProps = {
   initialSection?: SectionKey;
@@ -80,11 +178,14 @@ export function TenantDashboardShell({
     },
   );
   const [selectedScope, setSelectedScope] = useState("");
-  const [availability, setAvailability] = useState({
+  const [availability, setAvailability] = useState<ScopeAvailability>({
     loading: true,
     units: [] as { id: number; name: string }[],
     audiences: [] as { id: number; name: string; unitId: number }[],
+    unitsError: false,
+    audiencesError: false,
   });
+  const [availabilityRequest, setAvailabilityRequest] = useState(0);
 
   useEffect(() => {
     const context = readTenantLoginContext();
@@ -92,12 +193,10 @@ export function TenantDashboardShell({
     const authenticatedDashboardRole = getEffectiveDashboardRole(context);
     if (!authenticatedDashboardRole) return;
 
-    const requestedView = searchParams.get("view");
-    const nextRole: RoleKey =
-      (requestedView === "super" || requestedView === "unit" || requestedView === "audience") &&
-      getAccessibleDashboardRoles(authenticatedDashboardRole).includes(requestedView)
-        ? requestedView
-        : authenticatedDashboardRole;
+    const nextRole = getRequestedDashboardRole(
+      authenticatedDashboardRole,
+      searchParams.get("view"),
+    );
 
     setRole(nextRole);
     setSelectedScope(
@@ -120,33 +219,54 @@ export function TenantDashboardShell({
     const organizationId = loginContext?.organizationId;
 
     if (!organizationId) {
-      setAvailability({ loading: false, units: [], audiences: [] });
+      setAvailability({
+        loading: false,
+        units: [],
+        audiences: [],
+        unitsError: false,
+        audiencesError: false,
+      });
+      return () => { active = false; };
+    }
+
+    const cached = availabilityRequest === 0
+      ? getCachedScopeAvailability(organizationId)
+      : null;
+
+    if (cached) {
+      setAvailability({ loading: false, ...cached });
+      return () => { active = false; };
+    }
+
+    if (initialSection !== "dashboard") {
+      setAvailability({
+        loading: false,
+        units: (loginContext?.unitScope ?? EMPTY_SCOPE_IDS).map((id) => ({
+          id,
+          name: `Unit #${id}`,
+        })),
+        audiences: (loginContext?.audienceScope ?? EMPTY_SCOPE_IDS).map((id) => ({
+          id,
+          name: `Audience #${id}`,
+          unitId: 0,
+        })),
+        unitsError: false,
+        audiencesError: false,
+      });
       return () => { active = false; };
     }
 
     setAvailability((current) => ({ ...current, loading: true }));
-    void Promise.all([
-      getTenantUnits({ page: 1 }),
-      getOrganizationOnboardingAudiences(organizationId),
-    ]).then(([unitsResult, audiencesResult]) => {
+    void loadScopeAvailability(organizationId, availabilityRequest > 0).then((result) => {
       if (!active) return;
       setAvailability({
         loading: false,
-        units: unitsResult.success
-          ? unitsResult.data.data.map((unit) => ({ id: unit.unit_id, name: unit.name }))
-          : [],
-        audiences: audiencesResult.success
-          ? audiencesResult.data.results.map((audience) => ({
-              id: audience.audience_id,
-              name: audience.name,
-              unitId: audience.unit,
-            }))
-          : [],
+        ...result,
       });
     });
 
     return () => { active = false; };
-  }, [loginContext?.organizationId]);
+  }, [availabilityRequest, initialSection, loginContext]);
 
   useEffect(() => {
     if (availability.loading) return;
@@ -171,6 +291,7 @@ export function TenantDashboardShell({
   }, [authenticatedRole, availability, loginContext, role, selectedScope]);
 
   const config = roleConfigs[role];
+  const dashboardUserName = getDashboardUserName(loginContext);
   const activeSection = initialSection;
   const unitWorkspaceView = initialUnitWorkspaceView;
   const selectedUnitId =
@@ -189,6 +310,8 @@ export function TenantDashboardShell({
               ? `/dashboard/audience${dashboardViewQuery}`
             : item.label === "Users"
                 ? `/dashboard/users${dashboardViewQuery}`
+            : item.label === "Sessions"
+                ? `/dashboard/sessions${dashboardViewQuery}`
             : item.label === "Attendance"
                 ? `/dashboard/attendance${dashboardViewQuery}`
                 : item.label === "Reports"
@@ -205,6 +328,8 @@ export function TenantDashboardShell({
               ? item.label === "Audience" || item.label === "Audiences"
             : activeSection === "users"
               ? item.label === "Users"
+            : activeSection === "sessions"
+              ? item.label === "Sessions"
             : activeSection === "attendance"
               ? item.label === "Attendance"
               : activeSection === "reports"
@@ -266,6 +391,15 @@ export function TenantDashboardShell({
       return (loginContext?.audienceScope ?? []).includes(audience.id);
     })
     .map((audience) => ({ label: audience.name, value: `Audience: ${audience.name}` }));
+  const accessibleAudienceIds = availability.audiences
+    .filter((audience) => {
+      if (authenticatedRole === "super") return true;
+      if (authenticatedRole === "unit") {
+        return (loginContext?.unitScope ?? []).includes(audience.unitId);
+      }
+      return (loginContext?.audienceScope ?? []).includes(audience.id);
+    })
+    .map((audience) => audience.id);
   const scopeOptions: SelectOption[] = role === "super"
     ? [{ label: loginContext?.organizationName || "Organisation", value: loginContext?.organizationName || "Organisation" }]
     : role === "unit"
@@ -275,6 +409,9 @@ export function TenantDashboardShell({
     scopeOptions.length === 0 && !availability.loading
       ? "No assigned scope"
       : selectedScope || scopeOptions[0]?.value || "Loading scope...";
+  const unitDashboardScopeId = role === "unit"
+    ? availability.units.find((unit) => `Unit: ${unit.name}` === activeScope)?.id
+    : undefined;
 
   const compactScopeLabel = activeScope.includes(":")
     ? activeScope.split(":")[1]?.trim() || activeScope
@@ -287,8 +424,31 @@ export function TenantDashboardShell({
     value: accessibleRole,
   }));
 
-  const shouldShowUnitEmptyState = role === "unit" && !availability.loading && unitScopeOptions.length === 0;
-  const shouldShowAudienceEmptyState = role === "audience" && !availability.loading && audienceScopeOptions.length === 0;
+  const assignedUnitScopeMissing =
+    authenticatedRole === "unit" && (loginContext?.unitScope?.length ?? 0) === 0;
+  const assignedAudienceScopeMissing =
+    authenticatedRole === "audience" && (loginContext?.audienceScope?.length ?? 0) === 0;
+  const shouldShowUnitEmptyState =
+    role === "unit" &&
+    !availability.loading &&
+    (authenticatedRole === "super" ? unitScopeOptions.length === 0 : assignedUnitScopeMissing);
+  const shouldShowAudienceEmptyState =
+    role === "audience" &&
+    !availability.loading &&
+    (authenticatedRole === "audience"
+      ? assignedAudienceScopeMissing
+      : audienceScopeOptions.length === 0);
+  const scopeKind = role === "audience" ? "audience" : "unit";
+  const scopeVerificationError = role === "unit"
+    ? availability.unitsError
+    : role === "audience"
+      ? availability.audiencesError
+      : false;
+  const restrictedAdminScopeMissing = assignedUnitScopeMissing || assignedAudienceScopeMissing;
+  const navigationDisabled =
+    authenticatedRole === "unit" || authenticatedRole === "audience"
+      ? restrictedAdminScopeMissing
+      : false;
   const canCreateInEmptyState =
     authenticatedRole === "super" ||
     (authenticatedRole === "unit" && role === "audience" && unitScopeOptions.length > 0);
@@ -322,6 +482,7 @@ export function TenantDashboardShell({
           onThemeChange={handleThemeChange}
           mobileOpen={mobileSidebarOpen}
           onCloseMobile={() => setMobileSidebarOpen(false)}
+          navigationDisabled={navigationDisabled}
         />
 
         <div className="min-w-0 flex flex-1 flex-col overflow-hidden">
@@ -365,29 +526,24 @@ export function TenantDashboardShell({
             isLoggingOut={isLoggingOut}
             settingsHref={`/dashboard/settings${dashboardViewQuery}`}
             commandBar={config.commandBar}
+            navigationDisabled={navigationDisabled}
           />
 
           <div className="scrollbar-dashboard min-h-0 flex-1 overflow-y-auto px-5 pb-10 sm:px-8 lg:px-8">
-            {activeSection === "units" ? (
-              <UnitsWorkspace
+            {activeSection === "dashboard" && role !== "super" && availability.loading ? (
+              <DashboardScopeState
                 darkMode={darkMode}
-                role={role}
-                view={unitWorkspaceView}
-                selectedUnitId={selectedUnitId}
+                state="loading"
+                scopeLabel={scopeKind}
               />
-            ) : activeSection === "audience" ? (
-              <AudienceWorkspace darkMode={darkMode} />
-            ) : activeSection === "users" ? (
-              <UsersWorkspace darkMode={darkMode} />
-            ) : activeSection === "attendance" ? (
-              <AttendanceWorkspace darkMode={darkMode} />
-            ) : activeSection === "reports" ? (
-              <ReportsWorkspace darkMode={darkMode} />
-            ) : activeSection === "subscription" ? (
-              <SubscriptionWorkspace darkMode={darkMode} expired={searchParams.get("state") === "expired"} />
-            ) : activeSection === "settings" ? (
-              <SettingsWorkspace darkMode={darkMode} organizationName={loginContext?.organizationName} />
-            ) : shouldShowUnitEmptyState || shouldShowAudienceEmptyState ? (
+            ) : activeSection === "dashboard" && role !== "super" && scopeVerificationError ? (
+              <DashboardScopeState
+                darkMode={darkMode}
+                state="error"
+                scopeLabel={scopeKind}
+                onRetry={() => setAvailabilityRequest((current) => current + 1)}
+              />
+            ) : activeSection === "dashboard" && (shouldShowUnitEmptyState || shouldShowAudienceEmptyState) ? (
               <InheritedDashboardEmptyState
                 darkMode={darkMode}
                 kind={shouldShowUnitEmptyState ? "unit" : "audience"}
@@ -398,26 +554,65 @@ export function TenantDashboardShell({
                     ? "/dashboard/units"
                     : "/dashboard/audience",
                 )}
-                onReturn={() => router.push("/dashboard")}
               />
+            ) : activeSection === "units" ? (
+              <UnitsWorkspace
+                darkMode={darkMode}
+                role={role}
+                accessRole={authenticatedRole ?? role}
+                allowedUnitIds={loginContext?.unitScope ?? EMPTY_SCOPE_IDS}
+                view={unitWorkspaceView}
+                selectedUnitId={selectedUnitId}
+              />
+            ) : activeSection === "audience" ? (
+              <AudienceWorkspace
+                darkMode={darkMode}
+                role={role}
+                accessRole={authenticatedRole ?? role}
+                allowedUnitIds={loginContext?.unitScope ?? EMPTY_SCOPE_IDS}
+                allowedAudienceIds={accessibleAudienceIds}
+              />
+            ) : activeSection === "users" ? (
+              <UsersWorkspace darkMode={darkMode} />
+            ) : activeSection === "sessions" ? (
+              <SessionsWorkspace
+                darkMode={darkMode}
+                role={role}
+                accessRole={authenticatedRole ?? role}
+                allowedAudienceIds={accessibleAudienceIds}
+              />
+            ) : activeSection === "attendance" ? (
+              <AttendanceWorkspace
+                darkMode={darkMode}
+                accessRole={authenticatedRole ?? role}
+                allowedUnitIds={loginContext?.unitScope ?? EMPTY_SCOPE_IDS}
+                allowedAudienceIds={loginContext?.audienceScope ?? EMPTY_SCOPE_IDS}
+              />
+            ) : activeSection === "reports" ? (
+              <ReportsWorkspace darkMode={darkMode} />
+            ) : activeSection === "subscription" ? (
+              <SubscriptionWorkspace darkMode={darkMode} expired={searchParams.get("state") === "expired"} />
+            ) : activeSection === "settings" ? (
+              <SettingsWorkspace darkMode={darkMode} organizationName={loginContext?.organizationName} />
             ) : role === "super" ? (
               <SuperAdminDashboard
                 darkMode={darkMode}
                 activeScope={activeScope}
-                userName="John Doe"
+                userName={dashboardUserName}
               />
             ) : role === "unit" ? (
               <UnitAdminDashboard
                 darkMode={darkMode}
                 activeScope={activeScope}
-                userName="John Doe"
+                unitId={unitDashboardScopeId}
+                userName={dashboardUserName}
               />
             ) : role === "audience" ? (
               <AudienceAdminDashboard
                 darkMode={darkMode}
                 activeScope={activeScope}
                 assignedAudienceOptions={scopeOptions}
-                userName="John Doe"
+                userName={dashboardUserName}
                 onAudienceChange={setSelectedScope}
               />
             ) : (

@@ -4,9 +4,9 @@ import { useState } from "react";
 
 import {
   MetricGridInternal,
-  MetricGridSkeleton,
   PlanUsageActions,
   UnitsEmptyState,
+  UnitsLoadingState,
 } from "../shared";
 import type { OverviewMetric, UnitSummary } from "../types";
 import { UnitTablePanel } from "./UnitTablePanel";
@@ -15,6 +15,7 @@ import { UnitsPageHeader } from "./UnitsPageHeader";
 export function UnitsList({
   darkMode,
   onOpenCreateUnit,
+  canCreateUnits = true,
   unitUsageText,
   planLimitReached,
   units = [],
@@ -37,6 +38,7 @@ export function UnitsList({
 }: {
   darkMode: boolean;
   onOpenCreateUnit: () => void;
+  canCreateUnits?: boolean;
   unitUsageText: string;
   planLimitReached: boolean;
   units?: UnitSummary[];
@@ -72,7 +74,7 @@ export function UnitsList({
           { label: "Dashboard" },
           { label: "Units", active: true },
         ]}
-        actionSlot={
+        actionSlot={canCreateUnits ? (
           <PlanUsageActions
             darkMode={darkMode}
             unitUsageText={unitUsageText}
@@ -80,47 +82,49 @@ export function UnitsList({
             onCreateUnit={onOpenCreateUnit}
             loading={loading}
           />
-        }
+        ) : null}
       />
 
       {!loading && !error && units.length === 0 && !query.trim() ? (
         <UnitsEmptyState
           darkMode={darkMode}
           title="No units yet"
-          body="Create your first unit to assign administrators, organise audiences, and begin tracking activity."
+          body={canCreateUnits
+            ? "Create your first unit to assign administrators, organise audiences, and begin tracking activity."
+            : "No unit is currently assigned to your account. Contact a Super Admin to request access."}
           actionLabel="Create New Unit"
-          onAction={onOpenCreateUnit}
+          onAction={canCreateUnits ? onOpenCreateUnit : undefined}
         />
       ) : (
-        <>
-      {loading ? (
-        <MetricGridSkeleton darkMode={darkMode} />
-      ) : (
-        <MetricGridInternal darkMode={darkMode} metrics={metrics ?? []} />
-      )}
-      <UnitTablePanel
-        darkMode={darkMode}
-        units={units}
-        tableLoading={tableLoading}
-        error={error}
-        query={query}
-        onQueryChange={onQueryChange}
-        ordering={ordering}
-        onOrderingChange={onOrderingChange}
-        activePage={activePage}
-        paginationItems={paginationItems}
-        totalUnits={totalUnits}
-        hasPreviousPage={hasPreviousPage}
-        hasNextPage={hasNextPage}
-        onPreviousPage={onPreviousPage}
-        onNextPage={onNextPage}
-        onPageChange={onPageChange}
-        statusFilter={statusFilter}
-        onStatusFilterChange={setStatusFilter}
-        segment={segment}
-        onSegmentChange={setSegment}
-      />
-        </>
+        loading ? (
+          <UnitsLoadingState darkMode={darkMode} />
+        ) : (
+          <>
+            <MetricGridInternal darkMode={darkMode} metrics={metrics ?? []} />
+            <UnitTablePanel
+              darkMode={darkMode}
+              units={units}
+              tableLoading={tableLoading}
+              error={error}
+              query={query}
+              onQueryChange={onQueryChange}
+              ordering={ordering}
+              onOrderingChange={onOrderingChange}
+              activePage={activePage}
+              paginationItems={paginationItems}
+              totalUnits={totalUnits}
+              hasPreviousPage={hasPreviousPage}
+              hasNextPage={hasNextPage}
+              onPreviousPage={onPreviousPage}
+              onNextPage={onNextPage}
+              onPageChange={onPageChange}
+              statusFilter={statusFilter}
+              onStatusFilterChange={setStatusFilter}
+              segment={segment}
+              onSegmentChange={setSegment}
+            />
+          </>
+        )
       )}
     </div>
   );

@@ -5,11 +5,13 @@ import type { TenantLoginContext } from "./tenant-session";
 export type DashboardSection =
   | "dashboard"
   | "units"
+  | "sessions"
   | "audience"
   | "users"
   | "attendance"
   | "reports"
-  | "subscription";
+  | "subscription"
+  | "settings";
 
 const roleRank: Record<RoleKey, number> = {
   audience: 1,
@@ -20,21 +22,25 @@ const roleRank: Record<RoleKey, number> = {
 const sectionAccess: Record<DashboardSection, RoleKey[]> = {
   dashboard: ["audience", "unit", "super"],
   units: ["super"],
+  sessions: ["audience", "unit", "super"],
   audience: ["audience", "unit", "super"],
   users: ["unit", "super"],
   attendance: ["audience", "unit", "super"],
   reports: ["audience", "unit", "super"],
   subscription: ["super"],
+  settings: ["audience", "unit", "super"],
 };
 
 const sectionPaths: Record<DashboardSection, string> = {
   dashboard: "/dashboard",
   units: "/dashboard/units",
+  sessions: "/dashboard/sessions",
   audience: "/dashboard/audience",
   users: "/dashboard/users",
   attendance: "/dashboard/attendance",
   reports: "/dashboard/reports",
   subscription: "/dashboard/subscription",
+  settings: "/dashboard/settings",
 };
 
 export function hasRoleAtLeast(role: RoleKey, required: RoleKey) {
@@ -48,7 +54,7 @@ export function getAccessibleDashboardRoles(role: RoleKey): RoleKey[] {
 }
 
 export function canAccessDashboardSection(role: RoleKey, section: DashboardSection) {
-  return sectionAccess[section].some((required) => hasRoleAtLeast(role, required));
+  return sectionAccess[section].includes(role);
 }
 
 export function canAccessNavigationItem(role: RoleKey, label: string) {
@@ -70,7 +76,23 @@ export function canAccessNavigationItem(role: RoleKey, label: string) {
     Support: ["audience", "unit", "super"],
   };
 
-  return (itemAccess[label] ?? []).some((required) => hasRoleAtLeast(role, required));
+  return (itemAccess[label] ?? []).includes(role);
+}
+
+export function getRequestedDashboardRole(
+  authenticatedRole: RoleKey,
+  requestedView: string | null | undefined,
+): RoleKey {
+  if (
+    (requestedView === "super" ||
+      requestedView === "unit" ||
+      requestedView === "audience") &&
+    getAccessibleDashboardRoles(authenticatedRole).includes(requestedView)
+  ) {
+    return requestedView;
+  }
+
+  return authenticatedRole;
 }
 
 export function getDashboardSection(pathname: string): DashboardSection {

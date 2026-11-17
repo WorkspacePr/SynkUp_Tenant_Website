@@ -1,177 +1,229 @@
 import {
-  BadgeCheck,
   Building2,
-  CalendarDays,
+  CreditCard,
   FolderInput,
   GraduationCap,
   Plus,
   UserPlus,
   Users,
+  Waves,
 } from "lucide-react";
+import { createElement } from "react";
 
-import { roleConfigs } from "@/features/dashboard/components/showcase";
-import type { ListItem, RoleConfig, SessionRow } from "@/features/dashboard/components/showcase";
+import type {
+  DashboardRateMetric,
+  SuperAdminDashboardResponse,
+} from "@/features/dashboard/api/super-admin-dashboard";
+import type {
+  MetricCardData,
+  SessionRow,
+} from "@/features/dashboard/components/showcase";
 
 import type {
   ActivityItem,
-  AttendanceFilter,
   AttentionItem,
-  AttentionSeverity,
-  OverviewMetric,
+  HealthStrip,
   QuickAction,
-  SessionItem,
   SuperAdminDashboardData,
 } from "./types";
 
 function parseScopeLabel(scope: string | undefined) {
-  if (!scope) {
-    return "SynkUp University";
-  }
-
+  if (!scope) return "Organisation";
   return scope.includes(":") ? (scope.split(":")[1]?.trim() ?? scope) : scope;
 }
 
-function parseSessionStat(stat: string) {
-  const match = stat.match(/(\d+)\s*\/\s*(\d+)/);
+function formatPercentage(value: number | null) {
+  return value === null ? "Unavailable" : `${value.toFixed(1)}%`;
+}
 
-  if (!match) {
-    return { checkedIn: 0, total: 0 };
+function metricChange(
+  metric: DashboardRateMetric,
+  positiveIsGood: boolean,
+): Pick<MetricCardData, "trend" | "trendTone"> {
+  if (!metric.available || metric.change_vs_previous_period === null) {
+    return { trend: "No comparison available", trendTone: "neutral" };
   }
 
+  const change = metric.change_vs_previous_period;
+  if (change === 0) {
+    return { trend: "No change vs previous period", trendTone: "neutral" };
+  }
+
+  const improved = positiveIsGood ? change > 0 : change < 0;
   return {
-    checkedIn: Number(match[1]),
-    total: Number(match[2]),
+    trend: `${change > 0 ? "Up" : "Down"} ${Math.abs(change).toFixed(1)} pts vs previous period`,
+    trendTone: improved ? "success" : "warning",
   };
 }
 
-function mapSessionStatus(row: SessionRow): SessionItem["status"] {
-  if (row.badgeTone === "live") return "live";
-  if (row.badgeTone === "upcoming") return "upcoming";
-  return "review";
+function unavailableText(metric: DashboardRateMetric) {
+  return metric.available
+    ? `${metric.numerator ?? 0} of ${metric.denominator ?? 0}`
+    : metric.unavailable_reason ?? "This metric is not available yet.";
 }
 
-function mapSessions(config: RoleConfig): SessionItem[] {
-  return config.sessions.slice(0, 4).map((session, index) => {
-    const parsed = parseSessionStat(session.stat);
+function mapMetrics(data: SuperAdminDashboardResponse): MetricCardData[] {
+  const metrics = data.summary_metrics;
+  const invitation = metrics.invitation_acceptance_rate;
+  const dispute = metrics.attendance_dispute_rate;
+  const duplicate = metrics.duplicate_attendance_rate;
+  const lateSync = metrics.late_sync_rate;
+  const failedQr = metrics.failed_qr_validation_rate;
 
-    return {
-      id: `${session.title}-${index}`,
-      title: session.title,
-      time: session.time,
-      checkedIn: parsed.checkedIn,
-      total: parsed.total,
-      status: mapSessionStatus(session),
-    };
-  });
-}
-
-function mapMetrics(): OverviewMetric[] {
   return [
     {
-      label: "Active Users",
-      value: "2,847",
-      helper: "+43 this week",
-      trend: "Healthy growth",
-      icon: Users,
+      title: "Subscription",
+      value: metrics.subscription.available
+        ? `${metrics.subscription.status?.toUpperCase() ?? "UNKNOWN"}\n(${metrics.subscription.plan_name ?? "No plan"})`
+        : "Unavailable",
+      accent: metrics.subscription.status === "active" ? "green" : "plain",
+      subtitle: "Billing state",
+      trend: metrics.subscription.available ? "Current subscription" : "No subscription found",
+      trendTone: metrics.subscription.status === "active" ? "success" : "warning",
+      icon: createElement(CreditCard, { className: "h-9 w-9" }),
     },
     {
-      label: "Active Units",
-      value: "12 / 12",
-      helper: "All healthy",
-      trend: "No restrictions",
-      icon: Building2,
+      title: "Invite\nAcceptance",
+      value: formatPercentage(invitation.value),
+      subtitle: `${invitation.pending_count ?? 0} pending invites`,
+      ...metricChange(invitation, true),
+      icon: createElement(Users, { className: "h-9 w-9" }),
     },
     {
-      label: "Today's Sessions",
-      value: "18",
-      helper: "3 live now",
-      trend: "Steady flow",
-      icon: CalendarDays,
+      title: "Dispute\nRate",
+      value: formatPercentage(dispute.value),
+      subtitle: unavailableText(dispute),
+      ...metricChange(dispute, false),
+      icon: createElement(Building2, { className: "h-9 w-9 text-rose-300" }),
     },
     {
-      label: "Attendance Rate",
-      value: "94.6%",
-      helper: "Up 2.1%",
-      trend: "Higher than yesterday",
-      icon: BadgeCheck,
+      title: "Duplicate\nAttendance",
+      value: formatPercentage(duplicate.value),
+      subtitle: `${duplicate.flagged_duplicate_count ?? 0} duplicate check-ins`,
+      ...metricChange(duplicate, false),
+      icon: createElement(Waves, { className: "h-9 w-9 text-green-500" }),
+    },
+    {
+      title: "Late Sync\nand QR Fail",
+      value: `${lateSync.value === null ? "N/A" : `${lateSync.value.toFixed(1)}%`} / ${failedQr.value === null ? "N/A" : `${failedQr.value.toFixed(1)}%`}`,
+      subtitle: lateSync.available ? "Late sync / failed QR" : "Late sync unavailable / failed QR",
+      ...metricChange(failedQr, false),
+      icon: createElement(Waves, { className: "h-9 w-9 -rotate-45 text-slate-400" }),
     },
   ];
 }
 
-function severityRank(severity: AttentionSeverity) {
+function relativeTime(timestamp: string) {
+  const value = new Date(timestamp).getTime();
+  if (!Number.isFinite(value)) return "Recently";
+
+  const differenceSeconds = Math.round((value - Date.now()) / 1000);
+  const formatter = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+  if (Math.abs(differenceSeconds) < 60) {
+    return formatter.format(differenceSeconds, "second");
+  }
+
+  const minutes = Math.round(differenceSeconds / 60);
+  if (Math.abs(minutes) < 60) return formatter.format(minutes, "minute");
+
+  const hours = Math.round(minutes / 60);
+  if (Math.abs(hours) < 24) return formatter.format(hours, "hour");
+
+  return formatter.format(Math.round(hours / 24), "day");
+}
+
+function attentionActionLabel(actionType: string | null) {
   return {
-    critical: 0,
-    high: 1,
-    medium: 2,
-    low: 3,
-  }[severity];
+    attendance_record: "Review",
+    invitation: "Open",
+    report: "View report",
+  }[actionType ?? ""] ?? "View";
 }
 
-function mapAttention(config: RoleConfig): AttentionItem[] {
-  const source: AttentionItem[] = [
-    {
-      id: "duplicate-attendance",
-      severity: "critical",
-      title: "Duplicate attendance detected",
-      description: "14 scans require review across flagged attendance records.",
-      time: "2 mins ago",
-      actionLabel: "Review",
-    },
-    {
-      id: "role-confirmation",
-      severity: "high",
-      title: "Role changes awaiting confirmation",
-      description:
-        "2 high-risk permission updates still require re-auth confirmation.",
-      time: "8 mins ago",
-      actionLabel: "Confirm",
-    },
-    {
-      id: "invite-expiry",
-      severity: "medium",
-      title: "Invitations expiring soon",
-      description:
-        "7 invitations expire within 48 hours and may delay onboarding.",
-      time: "22 mins ago",
-      actionLabel: "Open",
-    },
-    {
-      id: "export-expiry",
-      severity: "low",
-      title: "Export links expiring today",
-      description: "3 signed report links will expire unless they are regenerated.",
-      time: "1 hour ago",
-      actionLabel: "Renew",
-    },
-    {
-      id: "dispute-timeout",
-      severity: "high",
-      title: "Disputes nearing timeout",
-      description:
-        "6 disputes are approaching SLA thresholds and need central review.",
-      time: "1 hour ago",
-      actionLabel: "Review",
-    },
-  ];
-
-  return source
-    .slice()
-    .sort((left, right) => severityRank(left.severity) - severityRank(right.severity));
-}
-
-function mapActivity(items: ListItem[]): ActivityItem[] {
-  return items.slice(0, 5).map((item, index) => ({
-    id: `${item.title}-${index}`,
+function mapAttention(data: SuperAdminDashboardResponse): AttentionItem[] {
+  return data.attention_queue.map((item) => ({
+    id: item.id,
+    severity: item.severity === "critical" ? "critical" : "high",
     title: item.title,
-    subject: item.subtitle,
-    time: item.meta?.split("|")[1]?.trim() ?? item.meta ?? "Recently",
-    tone:
-      item.title.toLowerCase().includes("override")
-        ? "info"
-        : item.title.toLowerCase().includes("role")
-          ? "warning"
-          : "success",
+    description: item.description,
+    time: relativeTime(item.timestamp),
+    actionLabel: attentionActionLabel(item.action_type),
+    actionType: item.action_type,
+    reference: item.reference,
   }));
+}
+
+function mapHealth(data: SuperAdminDashboardResponse): HealthStrip {
+  const health = data.system_health;
+  const serviceSummary = health.unhealthy_services
+    .map((service) => `${service.service}: ${service.status}`)
+    .join(", ");
+
+  return {
+    tone:
+      health.state === "healthy"
+        ? "success"
+        : health.state === "critical"
+          ? "danger"
+          : "warning",
+    title:
+      health.state === "healthy"
+        ? "System Healthy"
+        : health.state === "critical"
+          ? "Critical Attention Required"
+          : "Needs Attention",
+    summary:
+      serviceSummary ||
+      (health.attention_count > 0
+        ? `${health.attention_count} operational item${health.attention_count === 1 ? "" : "s"} need review.`
+        : "No current tenant or service conditions require attention."),
+    actionLabel: "View Details",
+  };
+}
+
+function formatSessionTime(timestamp: string) {
+  const value = new Date(timestamp);
+  if (Number.isNaN(value.getTime())) return timestamp;
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(value);
+}
+
+function mapSessions(data: SuperAdminDashboardResponse): SessionRow[] {
+  return data.sessions.map((session) => ({
+    title: session.name,
+    meta: `${session.audience_name}   ${session.unit_name}`,
+    time: formatSessionTime(session.start_time),
+    stat: `${session.present_count}/${session.eligible_count} present`,
+    badge: session.status === "active" ? "LIVE" : "UPCOMING",
+    badgeTone: session.status === "active" ? "live" : "upcoming",
+  }));
+}
+
+function mapActivity(data: SuperAdminDashboardResponse): ActivityItem[] {
+  return data.recent_activity.map((item) => {
+    const subject = [
+      item.actor ? `Actor: ${item.actor}` : null,
+      item.target ? `Target: ${item.target}` : null,
+      item.scope.unit_name ? `Unit: ${item.scope.unit_name}` : null,
+    ]
+      .filter(Boolean)
+      .join(" | ");
+
+    return {
+      id: String(item.log_id),
+      title: item.event,
+      subject: subject || item.subject_type || "Organisation activity",
+      time: relativeTime(item.timestamp),
+      tone:
+        item.tone === "positive"
+          ? "success"
+          : item.tone === "warning" || item.tone === "negative"
+            ? "warning"
+            : "neutral",
+    };
+  });
 }
 
 function mapQuickActions(): QuickAction[] {
@@ -184,114 +236,49 @@ function mapQuickActions(): QuickAction[] {
   ];
 }
 
-function buildHealthStrip(attentionItems: AttentionItem[], sessions: SessionItem[]) {
-  const criticalCount = attentionItems.filter(
-    (item) => item.severity === "critical" || item.severity === "high",
-  ).length;
-  const liveSessions = sessions.filter((session) => session.status === "live").length;
-
-  if (criticalCount > 0) {
-    return {
-      tone: "warning" as const,
-      title: "Needs Attention",
-      summary: `${liveSessions} live sessions are active. ${criticalCount} high-priority issues need review today.`,
-      actionLabel: "View Details",
-    };
-  }
-
-  return {
-    tone: "success" as const,
-    title: "System Healthy",
-    summary: `No critical attendance issues. ${liveSessions} live sessions are active and operations are stable.`,
-    actionLabel: "View Details",
-  };
+function weekdayLabel(date: string) {
+  const value = new Date(`${date}T12:00:00`);
+  return Number.isNaN(value.getTime())
+    ? date
+    : new Intl.DateTimeFormat(undefined, { weekday: "short" }).format(value);
 }
 
-export function buildSuperAdminDashboardData(params: {
+export function mapSuperAdminDashboardData(params: {
+  response: SuperAdminDashboardResponse;
   activeScope: string;
   userName?: string;
 }): SuperAdminDashboardData {
-  const config = roleConfigs.super;
-  const sessions = mapSessions(config);
-  const attentionItems = mapAttention(config);
-  const organisationName = parseScopeLabel(params.activeScope || config.scopeOptions?.[0]);
+  const { response } = params;
   const firstName = params.userName?.split(" ")[0]?.trim() || "Admin";
   const currentHour = new Date().getHours();
   const greetingPrefix =
-    currentHour < 12 ? "Good Morning" : currentHour < 17 ? "Good Afternoon" : "Good Evening";
-  const totalCheckIns = sessions.reduce((sum, session) => sum + session.checkedIn, 0);
-
-  const attendanceOverview: Record<AttendanceFilter, { activeFilter: AttendanceFilter; summary: string; points: Array<{ label: string; value: number }> }> =
-    {
-      today: {
-        activeFilter: "today",
-        summary: `${totalCheckIns.toLocaleString()} check-ins recorded today across 18 sessions. Attendance is up 2.1% from yesterday.`,
-        points: [
-          { label: "08:00", value: 18 },
-          { label: "10:00", value: 42 },
-          { label: "12:00", value: 61 },
-          { label: "14:00", value: 74 },
-          { label: "16:00", value: 58 },
-        ],
-      },
-      yesterday: {
-        activeFilter: "yesterday",
-        summary: `Yesterday closed with 1,104 check-ins and two flagged exceptions that were resolved before close of day.`,
-        points: [
-          { label: "08:00", value: 15 },
-          { label: "10:00", value: 38 },
-          { label: "12:00", value: 57 },
-          { label: "14:00", value: 67 },
-          { label: "16:00", value: 51 },
-        ],
-      },
-      "7days": {
-        activeFilter: "7days",
-        summary: `Attendance has remained stable over the last 7 days, with Friday showing the strongest session participation.`,
-        points: [
-          { label: "Mon", value: 56 },
-          { label: "Tue", value: 61 },
-          { label: "Wed", value: 59 },
-          { label: "Thu", value: 69 },
-          { label: "Fri", value: 74 },
-          { label: "Sat", value: 51 },
-          { label: "Sun", value: 63 },
-        ],
-      },
-      "30days": {
-        activeFilter: "30days",
-        summary: `The 30-day trend shows steady growth in participation with only minor dips during maintenance windows.`,
-        points: [
-          { label: "Wk 1", value: 64 },
-          { label: "Wk 2", value: 67 },
-          { label: "Wk 3", value: 71 },
-          { label: "Wk 4", value: 76 },
-        ],
-      },
-      custom: {
-        activeFilter: "custom",
-        summary: `Custom range analytics are ready. Use the report workspace for deeper filters and exports.`,
-        points: [
-          { label: "Range 1", value: 49 },
-          { label: "Range 2", value: 58 },
-          { label: "Range 3", value: 66 },
-          { label: "Range 4", value: 62 },
-        ],
-      },
-    };
+    currentHour < 12
+      ? "Good Morning"
+      : currentHour < 17
+        ? "Good Afternoon"
+        : "Good Evening";
+  const attentionCount = response.system_health.attention_count;
 
   return {
-    greeting: `${greetingPrefix}, ${firstName} \u{1F44B}`,
-    organisationName,
-    statusMessage: "Everything is running normally today.",
-    attentionSummary: `${attentionItems.length} items require your attention.`,
+    greeting: `${greetingPrefix}, ${firstName} 👋`,
+    organisationName: parseScopeLabel(params.activeScope),
+    statusMessage:
+      response.system_health.state === "healthy"
+        ? "Everything is running normally today."
+        : `${attentionCount} item${attentionCount === 1 ? "" : "s"} currently need attention.`,
+    attentionSummary: `${attentionCount} item${attentionCount === 1 ? "" : "s"} require your attention.`,
     primaryActionLabel: "Add User",
-    metrics: mapMetrics(),
-    healthStrip: buildHealthStrip(attentionItems, sessions),
-    attentionItems,
-    attendanceOverview,
-    sessions,
-    activity: mapActivity(config.extraBottomLeftItems ?? []),
+    metrics: mapMetrics(response),
+    healthStrip: mapHealth(response),
+    attentionItems: mapAttention(response),
+    trendHeights: response.attendance_trend.map((point) => point.attendance_rate),
+    trendLabels: response.attendance_trend.map((point) => weekdayLabel(point.date)),
+    performanceBars: response.unit_performance.map((unit) => ({
+      label: unit.unit_name,
+      value: unit.attendance_rate,
+    })),
+    sessions: mapSessions(response),
+    activity: mapActivity(response),
     quickActions: mapQuickActions(),
   };
 }

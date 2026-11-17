@@ -1,5 +1,7 @@
 "use client";
 
+import { DataTable } from "@/components/ui/DataTable";
+import { DataTablePanel } from "@/components/ui/DataTablePanel";
 import { useEffect, useState } from "react";
 import {
   Check,
@@ -318,17 +320,12 @@ export function SubscriptionWorkspace({
         </div>
       </div>
 
-      <Card
-        className={cn(
-          "mt-5 overflow-hidden rounded-[22px] border shadow-[0_20px_50px_-36px_rgba(15,23,42,0.35)]",
-          surface,
-        )}
-      >
+      <DataTablePanel darkMode={darkMode} className="mt-5">
         <div className="px-5 py-5">
           <h2 className="text-xl font-bold">Recent Invoices</h2>
         </div>
         <div className="overflow-x-auto">
-          <table className="min-w-[680px] w-full text-left text-sm">
+          <DataTable darkMode={darkMode} className="min-w-[680px] w-full text-left text-sm">
             <thead
               className={cn(
                 "text-[11px] font-bold uppercase tracking-[0.08em]",
@@ -374,9 +371,9 @@ export function SubscriptionWorkspace({
               ))}
               {usedInvoices.length === 0 ? <tr><td colSpan={4} className="px-5 py-10 text-center text-sm text-slate-500 dark:text-slate-400">No invoices are available for this tenant.</td></tr> : null}
             </tbody>
-          </table>
+          </DataTable>
         </div>
-      </Card>
+      </DataTablePanel>
 
       {planPickerMode ? (
         <Modal

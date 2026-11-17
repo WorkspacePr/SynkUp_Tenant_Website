@@ -250,6 +250,10 @@ function extractLoginRoutingContext(payload: TenantLoginResponse) {
   };
 }
 
+function extractFirstName(user: TenantLoginUser | undefined) {
+  return user?.first_name?.trim() || null;
+}
+
 export async function findTenantOrganization(subdomain: string) {
   try {
     const response = await fetch(buildApiUrl(apiEndpoints.tenantFindOrganization), {
@@ -348,6 +352,7 @@ export async function loginTenant(payload: {
       organizationSubdomain: body.organization?.subdomain ?? payload.subdomain,
       userId:
         typeof body.user?.user_id === "number" ? body.user.user_id : null,
+      firstName: extractFirstName(body.user),
       email: body.user?.email ?? payload.email,
       ...extractLoginRoutingContext(body),
       redirectTarget:
@@ -398,6 +403,7 @@ export async function verifyTenantLoginOtp(payload: {
           : null,
       userId:
         typeof body.user?.user_id === "number" ? body.user.user_id : null,
+      firstName: extractFirstName(body.user),
       ...extractLoginRoutingContext(body),
       redirectTarget:
         typeof body.redirect_target === "string" ? body.redirect_target : null,
